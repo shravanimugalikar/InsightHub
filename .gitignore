@@ -1,0 +1,49 @@
+# ============================================================
+#  InsightHub — .gitignore
+# ============================================================
+
+# Environment & secrets — NEVER commit these
+.env
+*.env
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Vector store (large binary files)
+vector_store/
+*.faiss
+*.pkl
+
+# Uploaded data files
+data/uploads/
+data/raw/
+
+# Exports
+exports/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+langchain_traces/
+
+# Model cache (HuggingFace downloads locally)
+.cache/
+models/
