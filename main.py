@@ -11,14 +11,23 @@ Multi-Agent RAG Research Assistant
 import streamlit as st
 import os
 import time
+import datetime
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
+import base64
+
+def get_base64_img(path):
+    if not os.path.exists(path): return ""
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
 
 # ─── Page Config ────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="InsightHub — Research Assistant",
-    page_icon="🔬",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -29,22 +38,24 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-    --bg:            #F5F4F1;
-    --bg2:           #e8e7e2;
-    --glass:         rgba(0,0,0,0.04);
-    --glass2:        rgba(0,0,0,0.07);
+    --bg:            #F8F9FA; /* SaaS Light Gray */
+    --bg2:           #f1f3f5;
+    --glass:         rgba(0,0,0,0.03);
+    --glass2:        rgba(0,0,0,0.06);
     --border:        rgba(0,0,0,0.08);
-    --border2:       rgba(110,86,255,0.40);
-    --p:             #6e56ff;
-    --p2:            #4a3aff;
+    --border2:       rgba(110,86,255,0.25);
+    --p:             #5e48ff;
+    --p2:            #4433ff;
     --cyan:          #0891b2;
-    --green:         #16a34a;
-    --orange:        #ea580c;
-    --t1:            #1a1a2e;
-    --t2:            #4a4a5e;
-    --t3:            #888899;
-    --r:             16px;
+    --green:         #10b981; /* Sharper Green */
+    --orange:        #f59e0b; /* Sharper Orange */
+    --t1:            #111827; /* Near black */
+    --t2:            #4b5563; /* Body text */
+    --t3:            #9ca3af; /* Muted */
+    --r:             12px;
     --rp:            100px;
+    --shadow:        0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
+    --shadow-hover:  0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
 }
 
 html, body, .stApp {
@@ -62,70 +73,130 @@ html, body, .stApp {
 
 /* ══ SIDEBAR ══ */
 [data-testid="stSidebar"] {
-    background: #e8e7e2 !important;
-    border-right: 1px solid var(--border) !important;
+    background: linear-gradient(180deg, #eeecea 0%, #e4e2dc 100%) !important;
+    border-right: 1px solid rgba(0,0,0,0.07) !important;
     min-width: 250px !important;
     max-width: 250px !important;
 }
 [data-testid="stSidebar"] > div { padding: 0 !important; }
 
-/* Hide default radio bullets */
-[data-testid="stSidebar"] .stRadio > div { gap: 0 !important; }
-[data-testid="stSidebar"] .stRadio input[type="radio"] { display: none !important; }
-
-/* Insight radio buttons */
-[data-testid="stSidebar"] .stRadio label {
-    display: flex !important;
-    align-items: center !important;
-    gap: 10px !important;
-    width: 100% !important;
-    padding: 11px 16px !important;
-    margin: 2px 0 !important;
-    border-radius: 10px !important;
-    border: 1px solid transparent !important;
-    cursor: pointer !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    color: var(--t2) !important;
-    transition: all 0.22s ease !important;
-    background: transparent !important;
-}
-[data-testid="stSidebar"] .stRadio label:hover {
-    background: var(--glass) !important;
-    color: var(--t1) !important;
-    border-color: var(--border) !important;
-}
-[data-testid="stSidebar"] .stRadio label[data-checked="true"],
-[data-testid="stSidebar"] .stRadio [aria-checked="true"] ~ label,
-div[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:has(input:checked) {
-    background: linear-gradient(135deg, rgba(110,86,255,0.22), rgba(167,139,250,0.12)) !important;
-    border-color: rgba(110,86,255,0.45) !important;
-    color: var(--t1) !important;
-    font-weight: 600 !important;
+/* Sidebar section labels */
+.sb-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #a09c94;
+    padding: 0 14px;
+    margin-bottom: 6px;
+    display: block;
 }
 
-/* Sidebar action buttons */
+/* Sidebar divider */
+.sb-divider {
+    height: 1px;
+    margin: 10px 14px 14px;
+    background: linear-gradient(90deg, transparent, rgba(0,0,0,0.10), transparent);
+}
+
+/* ── All sidebar buttons base ── */
 [data-testid="stSidebar"] .stButton > button {
     width: 100% !important;
-    background: var(--glass) !important;
-    border: 1px solid var(--border) !important;
+    background: transparent !important;
+    border: 1px solid transparent !important;
     border-radius: 10px !important;
-    color: var(--t2) !important;
+    color: #5a5650 !important;
     font-size: 13px !important;
     font-weight: 500 !important;
-    padding: 10px 16px !important;
+    padding: 10px 14px !important;
     text-align: left !important;
     justify-content: flex-start !important;
-    transition: all 0.25s ease !important;
+    transition: all 0.2s ease !important;
     box-shadow: none !important;
     letter-spacing: 0 !important;
+    margin-bottom: 2px !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
-    background: var(--glass2) !important;
-    border-color: var(--border2) !important;
-    color: var(--t1) !important;
+    background: rgba(0,0,0,0.05) !important;
+    border-color: rgba(0,0,0,0.08) !important;
+    color: #1a1816 !important;
     transform: none !important;
     box-shadow: none !important;
+}
+
+/* ── Insight buttons: color per source ── */
+/* Global — green */
+[data-testid="stSidebar"] .btn-global button {
+    border-left: 3px solid transparent !important;
+}
+[data-testid="stSidebar"] .btn-global button:hover {
+    border-left-color: #16a34a !important;
+    color: #16a34a !important;
+    background: rgba(22,163,74,0.07) !important;
+}
+[data-testid="stSidebar"] .btn-global.active button {
+    background: rgba(22,163,74,0.10) !important;
+    border-left-color: #16a34a !important;
+    border-color: rgba(22,163,74,0.30) !important;
+    color: #16a34a !important;
+    font-weight: 700 !important;
+}
+
+/* Local — orange */
+[data-testid="stSidebar"] .btn-local button {
+    border-left: 3px solid transparent !important;
+}
+[data-testid="stSidebar"] .btn-local button:hover {
+    border-left-color: #ea580c !important;
+    color: #ea580c !important;
+    background: rgba(234,88,12,0.07) !important;
+}
+[data-testid="stSidebar"] .btn-local.active button {
+    background: rgba(234,88,12,0.10) !important;
+    border-left-color: #ea580c !important;
+    border-color: rgba(234,88,12,0.30) !important;
+    color: #ea580c !important;
+    font-weight: 700 !important;
+}
+
+/* Web — cyan */
+[data-testid="stSidebar"] .btn-web button {
+    border-left: 3px solid transparent !important;
+}
+[data-testid="stSidebar"] .btn-web button:hover {
+    border-left-color: #0891b2 !important;
+    color: #0891b2 !important;
+    background: rgba(8,145,178,0.07) !important;
+}
+[data-testid="stSidebar"] .btn-web.active button {
+    background: rgba(8,145,178,0.10) !important;
+    border-left-color: #0891b2 !important;
+    border-color: rgba(8,145,178,0.30) !important;
+    color: #0891b2 !important;
+    font-weight: 700 !important;
+}
+
+/* ── Action buttons (New Research / Session History) ── */
+[data-testid="stSidebar"] .sb-action button {
+    background: rgba(110,86,255,0.07) !important;
+    border: 1px solid rgba(110,86,255,0.18) !important;
+    color: #5e48ff !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+}
+[data-testid="stSidebar"] .sb-action button:hover {
+    background: rgba(110,86,255,0.14) !important;
+    border-color: rgba(110,86,255,0.35) !important;
+    color: #4433ff !important;
+}
+
+/* Active view highlight for action buttons */
+[data-testid="stSidebar"] .sb-action.active button {
+    background: rgba(110,86,255,0.15) !important;
+    border-color: rgba(110,86,255,0.40) !important;
+    color: #4433ff !important;
+    font-weight: 700 !important;
+    box-shadow: 0 2px 8px rgba(110,86,255,0.15) !important;
 }
 
 /* ══ MAIN AREA ══ */
@@ -146,20 +217,22 @@ div[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:has(input:c
 
 /* ── Page heading ── */
 .page-heading {
-    font-family: 'DM Serif Display', serif;
-    font-size: 52px;
-    font-weight: 700;
-    color: var(--t1);
-    letter-spacing: -1px;
-    margin-bottom: 48px;
-    line-height: 1.25;
-    text-align: center;
+    font-family: 'DM Serif Display', serif !important;
+    font-size: 42px !important;
+    font-weight: 700 !important;
+    color: var(--t1) !important;
+    letter-spacing: -2px !important;
+    margin-bottom: 45px !important;
+    line-height: 1.2 !important;
+    text-align: center !important;
 }
 .page-heading span {
     background: linear-gradient(135deg, #6e56ff, #a78bfa, #22d3ee);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    display: inline-block;
+    padding-top: 10px;
 }
 
 /* ── Upload zone ── */
@@ -411,130 +484,318 @@ div[data-testid="stStatusWidget"] {
 @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.45} }
 
 /* ══ SESSION HISTORY MODERN STYLES ══ */
-.hist-header { margin-bottom: 32px; }
+.hist-page { padding: 0px 5px 10px; max-width: 860px; }
+.hist-header { margin-bottom: 16px; }
+
+
+/* ── Header ── */
 .hist-title {
     font-family: 'DM Serif Display', serif;
-    font-size: 36px;
-    font-weight: 800;
-    color: var(--t1);
-    letter-spacing: -0.8px;
-    margin-bottom: 8px;
-    text-align: left;
+    font-size: 40px; font-weight: 800; color: var(--t1);
+    letter-spacing: -1px; margin-bottom: 6px;
 }
 .hist-title span {
     background: linear-gradient(135deg, #6e56ff, #22d3ee);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     background-clip: text;
 }
-.hist-subtitle { font-size: 14px; color: var(--t3); font-weight: 400; }
+.hist-subtitle { font-size: 15px; color: var(--t3); margin-bottom: 0; }
 .header-divider {
-    height: 1px;
-    background: linear-gradient(90deg, #6e56ff33, #22d3ee33, transparent);
-    margin: 20px 0 32px;
+    height: 1px; margin: 16px 0 28px;
+    background: linear-gradient(90deg, rgba(110,86,255,0.25), rgba(34,211,238,0.15), transparent);
 }
 
-/* Search bar */
-.search-container { position: relative; width: 100%; margin-bottom: 24px; }
-.search-container::before {
-    content: '🔍'; position: absolute; left: 18px; top: 50%;
-    transform: translateY(-50%); z-index: 5; font-size: 15px; opacity: 0.5;
-}
-.search-container .stTextInput input {
-    border-radius: 100px !important;
-    padding-left: 48px !important;
+/* ── Search bar ── */
+.hist-page .stTextInput > div > div > input {
+    border-radius: 10px !important;
     background: white !important;
     border: 1px solid var(--border) !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.03) !important;
-    transition: all 0.25s ease !important;
-    height: 52px !important;
-}
-.search-container .stTextInput input:focus {
-    border-color: var(--p) !important;
-    box-shadow: 0 0 0 4px rgba(110,86,255,0.12) !important;
-}
-
-/* Chips & Buttons */
-.filter-chip-container { display: flex; gap: 8px; margin-bottom: 24px; }
-.filter-chip button {
-    border-radius: 100px !important;
-    padding: 6px 18px !important;
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    background: var(--glass) !important;
-    border: 1px solid var(--border) !important;
-    color: var(--t2) !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important;
+    height: 46px !important;
+    font-size: 14px !important;
+    padding: 0 16px !important;
     transition: all 0.2s ease !important;
 }
-.filter-chip button:hover { background: var(--glass2) !important; border-color: var(--border2) !important; }
+.hist-page .stTextInput > div > div > input:focus {
+    border-color: var(--p) !important;
+    box-shadow: 0 0 0 3px rgba(110,86,255,0.10) !important;
+}
+.hist-page .stTextInput label { display: none !important; }
 
-.active-g button { background: rgba(22,163,74,0.06) !important; border-color: var(--green) !important; color: var(--green) !important; }
-.active-l button { background: rgba(234,88,12,0.06) !important; border-color: var(--orange) !important; color: var(--orange) !important; }
-.active-w button { background: rgba(8,145,178,0.06) !important; border-color: var(--cyan) !important; color: var(--cyan) !important; }
+/* ── Filter row buttons ── */
+.filter-chip button {
+    border-radius: 8px !important; padding: 6px 16px !important;
+    font-size: 12px !important; font-weight: 600 !important;
+    background: white !important; border: 1px solid var(--border) !important;
+    color: var(--t2) !important; transition: all 0.2s ease !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+}
+.filter-chip button:hover { border-color: var(--p) !important; color: var(--p) !important; }
+.active-g button { background: rgba(16,185,129,0.08) !important; border-color: #10b981 !important; color: #10b981 !important; }
+.active-l button { background: rgba(245,158,11,0.08) !important; border-color: #f59e0b !important; color: #f59e0b !important; }
+.active-w button { background: rgba(8,145,178,0.08) !important; border-color: #0891b2 !important; color: #0891b2 !important; }
 
 .sort-pill button {
-    border-radius: 100px !important; font-size: 12px !important; width: 100%;
-    background: var(--glass) !important; border: 1px solid var(--border) !important;
+    border-radius: 8px !important; font-size: 12px !important; width: 100% !important;
+    background: white !important; border: 1px solid var(--border) !important;
+    color: var(--t2) !important; box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
 }
 .clear-pill button {
-    border-radius: 100px !important; font-size: 12px !important; width: 100%;
-    background: rgba(239,68,68,0.06) !important; border: 1px solid rgba(239,68,68,0.2) !important;
+    border-radius: 8px !important; font-size: 12px !important; width: 100% !important;
+    background: rgba(239,68,68,0.05) !important; border: 1px solid rgba(239,68,68,0.18) !important;
     color: #ef4444 !important;
 }
-.clear-pill button:hover { background: rgba(239,68,68,0.12) !important; border-color: #ef4444 !important; }
+.clear-pill button:hover { background: rgba(239,68,68,0.10) !important; }
 
-/* Elevated Card */
-.hist-card-modern {
-    background: rgba(255,255,255,0.8) !important;
-    backdrop-filter: blur(8px);
-    border: 1px solid var(--border) !important;
-    border-radius: 14px !important;
-    padding: 18px 24px !important;
-    box-shadow: 0 2px 16px rgba(0,0,0,0.06) !important;
-    transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    cursor: pointer;
-    margin-bottom: 12px;
-    position: relative;
-    text-align: left;
+/* ── Date group label ── */
+.hist-date-group {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--t3);
+    margin: 28px 0 12px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
 }
-.hist-card-modern:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
-    border-color: rgba(110,86,255,0.25) !important;
+
+/* ── History card (static) ── */
+.hist-card-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0 12px;
+    height: 40px !important;
+    min-height: 40px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    transition: all 0.2s ease;
 }
-.b-g { border-left: 4px solid var(--green) !important; }
-.b-l { border-left: 4px solid var(--orange) !important; }
-.b-w { border-left: 4px solid var(--cyan) !important; }
 
-.hist-q-modern { font-size: 15px; font-weight: 700; color: var(--t1); margin-bottom: 6px; }
-.hist-meta-modern { font-size: 12px; color: var(--t3); display: flex; align-items: center; gap: 8px; }
-
-.badge-pill { padding: 2px 10px; border-radius: 100px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-.bp-g { background: rgba(22,163,74,0.1); color: var(--green); }
-.bp-l { background: rgba(234,88,12,0.1); color: var(--orange); }
-.bp-w { background: rgba(8,145,178,0.1); color: var(--cyan); }
-
-/* Trash icon-only button */
-.trash-modern button {
-    width: 32px !important; height: 32px !important; min-height: 32px !important;
-    border-radius: 50% !important; border: none !important; padding: 0 !important;
-    background: transparent !important; color: var(--t3) !important;
+.hist-card-row:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.08); }
+.hist-card-badge {
+    flex-shrink: 0;
+    padding: 3px 9px; border-radius: 5px;
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    white-space: nowrap;
+}
+.hist-card-text {
+    flex: 1;
+    font-size: 14px; font-weight: 500;
+    color: var(--t1); line-height: 1.4;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Open button — symbol only */
+.hist-open-btn button {
+    background: rgba(110,86,255,0.07) !important;
+    border: 1px solid rgba(110,86,255,0.2) !important;
+    border-radius: 8px !important; color: var(--p) !important;
+    font-size: 15px !important; font-weight: 600 !important;
+    padding: 0 !important;
+    min-height: 40px !important; height: 40px !important;
+    width: 40px !important; min-width: 40px !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
+    line-height: 1 !important;
     transition: all 0.2s ease !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03) !important;
 }
-.trash-modern button:hover { background: rgba(239,68,68,0.1) !important; color: #ef4444 !important; }
+.hist-open-btn { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
 
-.empty-state-modern {
-    border: 2px dashed var(--border) !important;
-    border-radius: 16px !important;
-    padding: 64px 20px !important;
-    text-align: center;
+
+
+
+
+
+.hist-open-btn button:hover { background: rgba(110,86,255,0.16) !important; }
+/* Delete button — symbol only */
+.hist-del-btn button {
+    background: transparent !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important; color: var(--t3) !important;
+    font-size: 15px !important; font-weight: 600 !important;
+    padding: 0 !important;
+    min-height: 40px !important; height: 40px !important;
+    width: 40px !important; min-width: 40px !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
+    line-height: 1 !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03) !important;
+}
+.hist-del-btn { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+.hist-del-btn button:hover {
+    border-color: #ef4444 !important;
+    color: #ef4444 !important;
+    background: rgba(239,68,68,0.05) !important;
+}
+/* Remove Streamlit default column gap for the card row */
+.hist-row-wrap {
+    margin-bottom: 2px !important;
+}
+/* The outer horizontal flex container */
+.hist-row-wrap [data-testid="stHorizontalBlock"] {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+}
+/* Each column: fixed 40px height, fully centered */
+.hist-row-wrap [data-testid="column"] {
+    padding: 0 !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: visible !important;
+}
+/* Collapse Streamlit's inner stVerticalBlock wrappers */
+.hist-row-wrap [data-testid="column"] [data-testid="stVerticalBlock"] {
+    gap: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+/* Collapse any intermediate div wrappers inside columns */
+.hist-row-wrap [data-testid="column"] > div,
+.hist-row-wrap [data-testid="column"] > div > div {
+    width: 100% !important;
+    height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+/* Button elements themselves */
+.hist-row-wrap [data-testid="column"] .stButton {
+    width: 100% !important;
+    height: 40px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.hist-row-wrap [data-testid="column"] .stButton > button {
+    height: 40px !important;
+    min-height: 40px !important;
+    width: 40px !important;
+    min-width: 40px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
 
+
+
+
+/*.hist-row-wrap [data-testid="column"]:first-child {
+    align-items: stretch !important;
+}*/
+
+
+
+
+/* ── Empty state ── */
+.hist-empty {
+    border: 2px dashed var(--border); border-radius: 14px;
+    padding: 72px 20px; text-align: center; margin-top: 20px;
+}
+
+/* ── Back button ── */
 .ghost-back button {
     background: transparent !important; border: 1px solid var(--border) !important;
-    border-radius: 10px !important; color: var(--t3) !important; font-size: 13px !important;
+    border-radius: 8px !important; color: var(--t3) !important;
+    font-size: 13px !important; transition: all 0.22s ease !important;
 }
-.ghost-back button:hover { background: rgba(110,86,255,0.06) !important; border-color: var(--p) !important; color: var(--p) !important; }
+.ghost-back button:hover { border-color: var(--p) !important; color: var(--p) !important; }
+
+/* Open button */
+.hist-action-btn button {
+    background: white !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    color: var(--t2) !important;
+    font-size: 15px !important;
+    width: 100% !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    align-self: stretch !important;
+    padding: 0 !important;
+    transition: all 0.18s ease !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+}
+.hist-action-btn button:hover {
+    border-color: var(--p) !important;
+    color: var(--p) !important;
+    background: rgba(110,86,255,0.05) !important;
+}
+
+/* Delete button */
+.hist-del-btn button {
+    background: white !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    color: var(--t3) !important;
+    font-size: 15px !important;
+    width: 100% !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    align-self: stretch !important;
+    padding: 0 !important;
+    transition: all 0.18s ease !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+}
+.hist-del-btn button:hover {
+    border-color: #ef4444 !important;
+    color: #ef4444 !important;
+    background: rgba(239,68,68,0.05) !important;
+}
+
+/* ── Card row spacing: collapse all Streamlit vertical rhythm ── */
+
+/* The outer stVerticalBlock that holds all the card rows */
+[data-testid="stVerticalBlock"] {
+    gap: 4px !important;
+}
+
+/* Border wrapper added by newer Streamlit versions */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* Element container wrapping each st.columns() call */
+.element-container {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* Fix card row horizontal layout */
+[data-testid="stHorizontalBlock"] {
+    gap: 8px !important;
+    margin-bottom: 0 !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    align-items: stretch !important;
+}
+
+/* Zero out the column's own vertical padding */
+[data-testid="stHorizontalBlock"] > [data-testid="column"] {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* Inner vertical block inside each column */
+[data-testid="stHorizontalBlock"] > [data-testid="column"] > [data-testid="stVerticalBlock"] {
+    gap: 0 !important;
+}
+
 
 </style>
 """, unsafe_allow_html=True)
@@ -559,6 +820,11 @@ defaults = {
     "view": "research",          # "research" | "history"
     "history": load_history(),   # list of {source, query, result, ts}
     "insight": "Global Insight",
+    "hist_search": "",
+    "hist_filters": ["Global Insight", "Local Insight", "Web Insight"],
+    "hist_sort_newest": True,
+    "hist_confirm_clear": False,
+    "came_from_history": False,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -579,87 +845,72 @@ INSIGHT_SOURCE_MAP = {
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
     # Brand
-    st.markdown("""
-    <div style='padding:28px 16px 20px; text-align:center;'>
-        <div style='font-size:36px; margin-bottom:10px;
-                    filter:drop-shadow(0 0 14px rgba(110,86,255,0.5));'>🔬</div>
-        <div style='font-family:Space Grotesk,sans-serif; font-size:20px; font-weight:800;
-                    background:linear-gradient(135deg,#6e56ff,#22d3ee);
-                    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-                    letter-spacing:-0.3px;'>InsightHub</div>
-    </div>
+    logo_b64 = get_base64_img("insighthub-logo.png")
+    st.markdown(f"""
+        <div style='padding: 14px 20px 16px; text-align: center;'>
+            <div style='display: flex; flex-direction: column; align-items: center; gap: 8px;'>
+                <div style='width:64px; height:64px; border-radius:50%;
+                            background: linear-gradient(135deg,rgba(110,86,255,0.15),rgba(34,211,238,0.12));
+                            border: 1.5px solid rgba(110,86,255,0.20);
+                            display:flex; align-items:center; justify-content:center;
+                            box-shadow: 0 4px 16px rgba(110,86,255,0.10);'>
+                    <img src='data:image/png;base64,{logo_b64}' width='44'
+                         style='filter: drop-shadow(0 2px 8px rgba(110,86,255,0.18));'>
+                </div>
+                <div style='font-family: "DM Serif Display", serif; font-size: 26px; font-weight: 700;
+                            background: linear-gradient(120deg, #3b82f6, #6e56ff);
+                            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                            letter-spacing: -1px; line-height: 1.1;'>InsightHub</div>
+                <div style='font-size:10px; color:#a09c94; letter-spacing:0.5px;
+                            font-weight:600; text-transform:uppercase;'>Research Assistant</div>
+            </div>
+        </div>
+        <div style='height:1px; margin:0 14px 14px;
+                    background:linear-gradient(90deg,transparent,rgba(0,0,0,0.10),transparent);'></div>
     """, unsafe_allow_html=True)
 
-    # Insight selector (radio as styled buttons)
-    st.markdown(
-        "<div style='font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;"
-        "color:var(--t3);padding:0 8px;margin-bottom:8px;'>Insights</div>",
-        unsafe_allow_html=True,
-    )
-    
-    # We use a container to precisely target these buttons with CSS
-    with st.container():
-        # Inject dynamic CSS to highlight the active button
-        source_colors = {
-            "Global Insight": ("22,163,74",   "#16a34a"),
-            "Local Insight":  ("234,88,12",   "#ea580c"),
-            "Web Insight":    ("8,145,178",   "#0891b2"),
-        }
-        rgb, hex_color = source_colors[st.session_state.insight]
-        
-        # Calculate index for CSS targeting
-        all_sources = ["Global Insight", "Local Insight", "Web Insight"]
-        active_idx = all_sources.index(st.session_state.insight)
-        
-        # This CSS targets buttons inside this specific container
-        st.markdown(f"""
-        <style>
-        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] > div:nth-child({active_idx + 2}) button {{
-            background: rgba({rgb}, 0.08) !important;
-            border-color: {hex_color} !important;
-            color: {hex_color} !important;
-            font-weight: 600 !important;
-        }}
-        </style>
-        """, unsafe_allow_html=True)
+    # Insight selector
+    st.markdown("<span class='sb-label'>Insights</span>", unsafe_allow_html=True)
 
-        if st.button("🌍  Global Insight", key="btn_global", use_container_width=True):
-            st.session_state.insight = "Global Insight"
-            st.rerun()
-        if st.button("📂  Local Insight", key="btn_local", use_container_width=True):
-            st.session_state.insight = "Local Insight"
-            st.rerun()
-        if st.button("🌐  Web Insight", key="btn_web", use_container_width=True):
-            st.session_state.insight = "Web Insight"
-            st.rerun()
-    
+    insight_cfg = {
+        "Global Insight": "btn-global",
+        "Local Insight":  "btn-local",
+        "Web Insight":    "btn-web",
+    }
+
+    with st.container():
+        for src, cls in insight_cfg.items():
+            active_cls = "active" if st.session_state.insight == src else ""
+            st.markdown(f"<div class='{cls} {active_cls}'>", unsafe_allow_html=True)
+            if st.button(src, key=f"btn_{cls}", use_container_width=True):
+                st.session_state.insight = src
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+
     insight = st.session_state.insight
 
-    st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
-    st.markdown(
-        "<div style='height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.07),transparent);"
-        "margin:0 0 14px;'></div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<div class='sb-divider'></div>", unsafe_allow_html=True)
 
     # Action buttons
-    st.markdown(
-        "<div style='font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;"
-        "color:var(--t3);padding:0 8px;margin-bottom:8px;'>Actions</div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<span class='sb-label'>Actions</span>", unsafe_allow_html=True)
 
-    if st.button("✦  New Research", key="btn_new", use_container_width=True):
+    new_active = "active" if st.session_state.view == "research" else ""
+    st.markdown(f"<div class='sb-action {new_active}'>", unsafe_allow_html=True)
+    if st.button("New Research", key="btn_new", use_container_width=True):
         st.session_state.view = "research"
         st.session_state.uploaded_db = None
         st.session_state.active_agent = None
         st.session_state.last_plan = {}
         clear_memory(INSIGHT_SOURCE_MAP.get(insight, "Global Insight"))
         st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    if st.button("📋  Session History", key="btn_hist", use_container_width=True):
+    hist_active = "active" if st.session_state.view == "history" else ""
+    st.markdown(f"<div class='sb-action {hist_active}'>", unsafe_allow_html=True)
+    if st.button("Session History", key="btn_hist", use_container_width=True):
         st.session_state.view = "history"
         st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 
@@ -696,7 +947,7 @@ def _md_to_html(text: str, source: str = "") -> str:
 def run_with_progress(query, source, uploaded_db=None, chat_history=None):
     result = {}
     with st.status("Researching...", expanded=True) as status:
-        st.write("🔍 Analyzing query…")
+        st.write("Analyzing query…")
         st.session_state.active_agent = "Planner"
         time.sleep(0.2)
         try:
@@ -705,16 +956,16 @@ def run_with_progress(query, source, uploaded_db=None, chat_history=None):
                 uploaded_db=uploaded_db,
                 chat_history=chat_history or [],
             )
-            st.write("📚 Retrieving documents…")
+            st.write("Retrieving documents…")
             st.session_state.active_agent = "Retrieval"
             time.sleep(0.15)
-            st.write("✍️ Synthesizing report…")
+            st.write("Synthesizing report…")
             st.session_state.active_agent = "Synthesizer"
             time.sleep(0.15)
-            status.update(label="✅ Done!", state="complete", expanded=False)
+            status.update(label="Done!", state="complete", expanded=False)
             st.session_state.active_agent = None
         except Exception as e:
-            status.update(label=f"❌ {e}", state="error")
+            status.update(label=f"Error: {e}", state="error")
             st.session_state.active_agent = None
             st.error(str(e))
             return None
@@ -729,7 +980,7 @@ def render_plan(result):
     sub_html = "".join(f"<li>{q}</li>" for q in sub_qs)
     st.markdown(f"""
     <div class='plan-card fi'>
-        <div class='plan-label'>🧭 Research Plan</div>
+        <div class='plan-label'>Research Plan</div>
         <div class='plan-text'>{plan}</div>
         {"<ul class='sub-list'>" + sub_html + "</ul>" if sub_qs else ""}
     </div>""", unsafe_allow_html=True)
@@ -744,8 +995,8 @@ def render_report(result, badge_cls, badge_label, source):
         return
     st.markdown(f"""
     <div class='stat-row fi'>
-        <div class='stat-chip'>📄 <b>{len(docs)}</b> docs</div>
-        <div class='stat-chip'>🔗 <b>{len(citations)}</b> citations</div>
+        <div class='stat-chip'><b>{len(docs)}</b> docs</div>
+        <div class='stat-chip'><b>{len(citations)}</b> citations</div>
         <div class='badge-{badge_cls}'>● {badge_label}</div>
     </div>""", unsafe_allow_html=True)
     st.markdown(f"""
@@ -759,7 +1010,7 @@ def render_report(result, badge_cls, badge_label, source):
         )
         st.markdown(f"""
         <div class='cit-wrap fi3'>
-            <div class='cit-label'>🔗 Sources</div>
+            <div class='cit-label'>Sources</div>
             {chips}
         </div>""", unsafe_allow_html=True)
 
@@ -767,7 +1018,7 @@ def render_report(result, badge_cls, badge_label, source):
 def render_followup(tab_name, source, uploaded_db=None):
     st.markdown("<div class='div'></div>", unsafe_allow_html=True)
     st.markdown("<div style='font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;"
-                "color:#44445a;margin-bottom:14px;'>💬 Follow-up</div>", unsafe_allow_html=True)
+                "color:#44445a;margin-bottom:14px;'>Follow-up</div>", unsafe_allow_html=True)
 
     history = get_memory(tab_name)
     # Identify the last report and the user query that produced it to skip them in the chat transcript
@@ -819,80 +1070,36 @@ BADGE = {
 # SESSION HISTORY VIEW
 # ══════════════════════════════════════════════════════════════════════════════
 if st.session_state.view == "history":
-    # ── Initialize History View State ──
-    if "hist_search" not in st.session_state: st.session_state.hist_search = ""
-    if "hist_filters" not in st.session_state: st.session_state.hist_filters = ["Global Insight", "Local Insight", "Web Insight"]
-    if "hist_sort_newest" not in st.session_state: st.session_state.hist_sort_newest = True
-    if "hist_confirm_clear" not in st.session_state: st.session_state.hist_confirm_clear = False
+    st.markdown("<div class='hist-page'>", unsafe_allow_html=True)
 
-    # Card & Controls Style for Session History
+    # Header
     st.markdown("""
-    <style>
-    /* Target buttons in the list to act as cards */
-    div[data-testid="stVerticalBlock"] > div:has(.hist-card-wrapper) div.stButton button {
-        background: rgba(255,255,255,0.8) !important;
-        backdrop-filter: blur(8px) !important;
-        border: 1px solid var(--border) !important;
-        border-radius: 14px !important;
-        padding: 20px 24px 44px 24px !important; /* Space for meta */
-        width: 100% !important;
-        text-align: left !important;
-        display: block !important;
-        transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        min-height: 100px !important;
-        color: var(--t1) !important;
-        font-weight: 700 !important;
-        font-size: 15px !important;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.04) !important;
-    }
-    div[data-testid="stVerticalBlock"] > div:has(.hist-card-wrapper) div.stButton button:hover {
-        background: white !important;
-        border-color: rgba(110,86,255,0.3) !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
-    }
-    
-    /* Meta info layering */
-    .hist-card-wrapper { position: relative; pointer-events: none; margin-top: -40px; margin-left: 24px; z-index: 5; }
-    
-    /* Source borders (applied to the button via helper class in container) */
-    div[data-testid="stVerticalBlock"] > div:has(.cc-g) div.stButton button { border-left: 4px solid var(--green) !important; }
-    div[data-testid="stVerticalBlock"] > div:has(.cc-l) div.stButton button { border-left: 4px solid var(--orange) !important; }
-    div[data-testid="stVerticalBlock"] > div:has(.cc-w) div.stButton button { border-left: 4px solid var(--cyan) !important; }
-
-    /* Trash button positioning */
-    .trash-pos { display: flex; align-items: center; justify-content: center; width: 100%; height: 60px; }
-    </style>
-    """, unsafe_allow_html=True)
+<div class='hist-header'>
+    <div class='hist-title'>Session <span>History</span></div>
+    <div class='hist-subtitle'>Review and reload your past research insights</div>
+</div>
+<div class='header-divider'></div>
+""", unsafe_allow_html=True)
 
 
-    # 1. Page Header
-    st.markdown("""
-    <div style='padding:64px 60px 0;'>
-        <div class='hist-header fi'>
-            <div class='hist-title'>Session <span>History</span></div>
-            <div class='hist-subtitle'>Review and reload your past research insights</div>
-            <div class='header-divider'></div>
-        </div>
-    </div>""", unsafe_allow_html=True)
+    # Search
+    st.session_state.hist_search = st.text_input(
+        "Search", value=st.session_state.hist_search,
+        placeholder="🔍  Search by query text...",
+        label_visibility="collapsed",
+        key="hist_search_input",
+    )
 
-    st.markdown("<div style='padding:0 60px;'>", unsafe_allow_html=True)
-    
-    # 2. Search bar — FIXED: icon in placeholder
-    st.session_state.hist_search = st.text_input("Search", value=st.session_state.hist_search,
-                                                placeholder="🔍  Search by query text...", 
-                                                label_visibility="collapsed")
-    
-    # 3. Filter chips & 6. Newest first toggle & 7. Clear history
+    # Filter row
     sources = [("Global", "Global Insight", "g"), ("Local", "Local Insight", "l"), ("Web", "Web Insight", "w")]
-    f_cols = st.columns([1, 1, 1, 1.4, 1.4])
-    
+    f_cols = st.columns([1, 1, 1, 1.5, 1.5])
+
     for i, (label, val, c_key) in enumerate(sources):
         is_active = val in st.session_state.hist_filters
         active_cls = f"active-{c_key}" if is_active else ""
         with f_cols[i]:
             st.markdown(f"<div class='filter-chip {active_cls}'>", unsafe_allow_html=True)
-            if f_cols[i].button(f"{'●' if is_active else '○'} {label}", key=f"filter_{label}", use_container_width=True):
+            if st.button(f"{'●' if is_active else '○'} {label}", key=f"filter_{label}", use_container_width=True):
                 if val in st.session_state.hist_filters:
                     if len(st.session_state.hist_filters) > 1:
                         st.session_state.hist_filters.remove(val)
@@ -903,7 +1110,6 @@ if st.session_state.view == "history":
 
     with f_cols[3]:
         st.markdown("<div class='sort-pill'>", unsafe_allow_html=True)
-        # BUG FIXED: Plan string label for sort toggle
         sort_lbl = "Newest first ↓" if st.session_state.hist_sort_newest else "Oldest first ↑"
         if st.button(sort_lbl, use_container_width=True, key="sort_toggle"):
             st.session_state.hist_sort_newest = not st.session_state.hist_sort_newest
@@ -913,25 +1119,22 @@ if st.session_state.view == "history":
     with f_cols[4]:
         st.markdown("<div class='clear-pill'>", unsafe_allow_html=True)
         if not st.session_state.hist_confirm_clear:
-            if st.button("🗑 Clear history", use_container_width=True):
+            if st.button("🗑 Clear history", use_container_width=True, key="clear_hist"):
                 st.session_state.hist_confirm_clear = True
                 st.rerun()
         else:
             cc1, cc2 = st.columns(2)
-            if cc1.button("✅ Yes", use_container_width=True):
+            if cc1.button("✅ Yes", use_container_width=True, key="clear_yes"):
                 st.session_state.history = []
                 clear_history()
                 st.session_state.hist_confirm_clear = False
                 st.rerun()
-            if cc2.button("❌ No", use_container_width=True):
+            if cc2.button("❌ No", use_container_width=True, key="clear_no"):
                 st.session_state.hist_confirm_clear = False
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
-
-
-    # ── Filtering & Display ──
+    # ── Filtering ──────────────────────────────────────────────────────────────
     filtered = [
         (idx, item) for idx, item in enumerate(st.session_state.history)
         if st.session_state.hist_search.lower() in item["query"].lower()
@@ -939,76 +1142,133 @@ if st.session_state.view == "history":
     ]
     display_list = list(reversed(filtered)) if st.session_state.hist_sort_newest else filtered
 
-    # 8. Empty state
+    # ── Source style map ───────────────────────────────────────────────────────
+    SOURCE_STYLES = {
+        "Global Insight": ("g", "arXiv Global"),
+        "Local Insight":  ("l", "Local Document"),
+        "Web Insight":    ("w", "Live Web"),
+    }
+
+    def _rel_time(ts_str: str) -> str:
+        """Convert HH:MM string or ISO string to relative label."""
+        try:
+            now = datetime.datetime.now()
+            # Try ISO first
+            try:
+                dt = datetime.datetime.fromisoformat(ts_str)
+            except Exception:
+                # Fall back to today + HH:MM
+                dt = datetime.datetime.strptime(ts_str, "%H:%M").replace(
+                    year=now.year, month=now.month, day=now.day
+                )
+            diff = now - dt
+            if diff.total_seconds() < 60:   return "just now"
+            if diff.total_seconds() < 3600: return f"{int(diff.total_seconds()//60)}m ago"
+            if diff.days == 0:              return f"{int(diff.total_seconds()//3600)}h ago"
+            if diff.days == 1:              return "Yesterday"
+            if diff.days < 7:               return f"{diff.days}d ago"
+            return dt.strftime("%b %d")
+        except Exception:
+            return ts_str  # fallback: show raw ts
+
+    # ── Date grouping ──────────────────────────────────────────────────────────
+    def _group(entries):
+        now   = datetime.datetime.now()
+        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        yest  = today - datetime.timedelta(days=1)
+        week  = today - datetime.timedelta(days=7)
+        groups = {"Today": [], "Yesterday": [], "Last 7 Days": [], "Earlier": []}
+        for idx, item in entries:
+            ts = item.get("iso_ts") or item.get("ts", "")
+            try:
+                try:   dt = datetime.datetime.fromisoformat(ts)
+                except: dt = datetime.datetime.strptime(ts, "%H:%M").replace(year=now.year, month=now.month, day=now.day)
+            except: dt = today
+            if dt >= today:    groups["Today"].append((idx, item))
+            elif dt >= yest:   groups["Yesterday"].append((idx, item))
+            elif dt >= week:   groups["Last 7 Days"].append((idx, item))
+            else:              groups["Earlier"].append((idx, item))
+        return groups
+
+    # ── Render ─────────────────────────────────────────────────────────────────
     if not st.session_state.history:
         st.markdown("""
-        <div class='empty-state-modern'>
-            <div style='font-size:48px;margin-bottom:16px;'>🗂️</div>
-            <div style='color:var(--t2);font-size:18px;font-weight:700;margin-bottom:4px;'>Nothing here yet</div>
-            <div style='color:var(--t3);font-size:14px;'>Your research queries will appear here</div>
-        </div>""", unsafe_allow_html=True)
+<div class='hist-empty'>
+    <div style='font-size:40px;margin-bottom:12px;'>🗂️</div>
+    <div style='font-size:17px;font-weight:700;color:var(--t2);margin-bottom:4px;'>Nothing here yet</div>
+    <div style='font-size:14px;color:var(--t3);'>Your research queries will appear here</div>
+</div>""", unsafe_allow_html=True)
+
     elif not display_list:
-        st.markdown("<div class='empty-state-modern'><div style='color:var(--t3);font-size:14px;'>No results for this search.</div></div>", unsafe_allow_html=True)
+        st.markdown("""
+<div class='hist-empty'>
+    <div style='font-size:14px;color:var(--t3);'>No results match your search.</div>
+</div>""", unsafe_allow_html=True)
+
     else:
-        # 4. History cards — FIXED: robust layout
-        source_styles = {
-            "Global Insight": ("#16a34a", "rgba(22,163,74,0.1)"),
-            "Local Insight":  ("#ea580c", "rgba(234,88,12,0.1)"),
-            "Web Insight":    ("#0891b2", "rgba(8,145,178,0.1)"),
+        SOURCE_COLORS = {
+            "Global Insight": ("#28A745", "rgba(40,167,69,0.1)"),   # Green
+            "Local Insight":  ("#FF9800", "rgba(255,152,0,0.1)"),    # Orange
+            "Web Insight":    ("#00BCD4", "rgba(0,188,212,0.1)"),    # Cyan
         }
-        
-        for i, (orig_idx, item) in enumerate(display_list):
-            b_cls, b_lbl = BADGE.get(item["insight"], ("g", "Global"))
-            q_trunc = item["query"][:85] + "..." if len(item["query"]) > 85 else item["query"]
-            source_hex, source_bg = source_styles.get(item["insight"], ("#6e56ff", "rgba(110,86,255,0.1)"))
-            
-            with st.container():
-                col_btn, col_del = st.columns([10, 1])
-                
-                with col_btn:
-                    st.markdown(f"""
-                    <div style='border-left: 4px solid {source_hex};
-                                background: rgba(255,255,255,0.85);
-                                border-radius: 14px;
-                                padding: 18px 24px;
-                                box-shadow: 0 2px 12px rgba(0,0,0,0.05);
-                                cursor: pointer;
-                                margin-bottom: 4px;'>
-                        <div style='font-size:15px;font-weight:700;color:var(--t1);margin-bottom:8px;'>{q_trunc}</div>
-                        <div style='font-size:12px;color:var(--t3);display:flex;align-items:center;gap:8px;'>
-                            {item["insight"]} · {item["ts"]}
-                            <span style='background:{source_bg};color:{source_hex};padding:2px 10px;
-                                         border-radius:100px;font-size:10px;font-weight:700;'>{b_lbl}</span>
-                        </div>
-                    </div>""", unsafe_allow_html=True)
-                    
-                    if st.button("Open", key=f"hist_reload_{orig_idx}", use_container_width=True):
-                        st.session_state.insight = item["insight"]
-                        st.session_state.view    = "research"
-                        st.session_state.restore_query = item["query"]
-                        st.session_state.last_plan[item["insight"]] = {
-                            "report": item.get("report", ""),
-                            "restored": True
-                        }
-                        st.rerun()
 
-                # 5. Trash icon button
-                with col_del:
-                    st.markdown("<div class='trash-pos trash-modern'>", unsafe_allow_html=True)
-                    if st.button("🗑", key=f"hist_del_{orig_idx}", help="Delete this session"):
-                        st.session_state.history.pop(orig_idx)
-                        remove_entry(orig_idx)
-                        st.rerun()
-                    st.markdown("</div>", unsafe_allow_html=True)
+        for orig_idx, item in display_list:
+            b_cls = SOURCE_STYLES.get(item["insight"], ("g", "Global"))[0]
+            b_lbl = SOURCE_STYLES.get(item["insight"], ("g", "Global"))[1]
+            q_trunc = item["query"][:65] + "…" if len(item["query"]) > 65 else item["query"]
 
-    # 9. Back to Research button
-    st.markdown("<div style='margin-top:40px;'>", unsafe_allow_html=True)
-    st.markdown("<div class='ghost-back'>", unsafe_allow_html=True)
-    if st.button("← Back to Research", key="back_btn"):
-        st.session_state.view = "research"
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+            # Single unified row: [card] [↗] [🗑]
+            st.markdown("<div class='hist-row-wrap'>", unsafe_allow_html=True)
+            col_query, col_open, col_del = st.columns([11, 0.7, 0.7])
+
+            with col_query:
+                source_colors_map = {
+                    "g": ("#10b981", "rgba(16,185,129,0.10)"),
+                    "l": ("#f59e0b", "rgba(245,158,11,0.10)"),
+                    "w": ("#0891b2", "rgba(8,145,178,0.10)"),
+                }
+                hex_c, bg_c = source_colors_map.get(b_cls, ("#6e56ff", "rgba(110,86,255,0.1)"))
+                st.markdown(f"""
+                <div style='display:flex; align-items:center; gap:12px;
+                            background:white; border:1px solid var(--border);
+                            border-left: 3px solid {hex_c};
+                            border-radius:10px; padding:14px 18px;
+                            box-shadow:0 1px 3px rgba(0,0,0,0.04);'>
+                    <span style='background:{bg_c}; color:{hex_c}; font-size:10px;
+                                 font-weight:700; text-transform:uppercase;
+                                 letter-spacing:0.5px; padding:3px 9px;
+                                 border-radius:5px; white-space:nowrap;'>{b_lbl}</span>
+                    <span style='font-size:14px; font-weight:500;
+                                 color:var(--t1);'>{q_trunc}</span>
+                </div>""", unsafe_allow_html=True)
+
+            with col_open:
+                st.markdown("<div class='hist-action-btn'>", unsafe_allow_html=True)
+                if st.button("↗", key=f"open_{orig_idx}", use_container_width=True, help="Open report"):
+                    st.session_state.insight = item["insight"]
+                    st.session_state.view = "research"
+                    st.session_state.came_from_history = True
+                    st.session_state.restore_query = item["query"]
+                    st.session_state.last_plan[item["insight"]] = {
+                        "report": item.get("report", ""),
+                        "restored": True,
+                    }
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            with col_del:
+                st.markdown("<div class='hist-del-btn'>", unsafe_allow_html=True)
+                if st.button("🗑", key=f"del_{orig_idx}", use_container_width=True, help="Delete"):
+                    remove_entry(orig_idx)
+                    st.session_state.history.pop(orig_idx)
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+
+
+    st.markdown("</div>", unsafe_allow_html=True)  # .hist-page
 
 
 
@@ -1028,12 +1288,12 @@ else:
     badge_cls, badge_lbl = BADGE[insight][:1][0], BADGE[insight][1]
 
     # ── Heading ──────────────────────────────────────────────────────────────
-    st.markdown(f"""
+    st.markdown("""
     <div style='padding:64px 60px 0;'>
-        <p class='page-heading fi'>
+        <div class='page-heading fi'>
             Uncover insights.<br>
             <span>What's your question?</span>
-        </p>
+        </div>
     </div>""", unsafe_allow_html=True)
 
     # ── Main input area ───────────────────────────────────────────────────────
@@ -1060,7 +1320,7 @@ else:
                         docs   = load_document(path)
                         chunks = chunk_documents(docs)
                         st.session_state.uploaded_db = create_vectorstore(chunks)
-                    st.success(f"✅ **{uploaded_file.name}** — {len(chunks)} chunks ready.")
+                    st.success(f"**{uploaded_file.name}** — {len(chunks)} chunks ready.")
 
             # ── Search pill ──────────────────────────────────────────────
             st.markdown("<div class='search-pill-wrap fi3'>", unsafe_allow_html=True)
@@ -1090,7 +1350,7 @@ else:
     if final_q:
         if insight == "Local Insight" and st.session_state.uploaded_db is None:
             st.markdown("<div style='padding:0 60px;'>", unsafe_allow_html=True)
-            st.warning("⚠️ Please upload a document first.")
+            st.warning("Please upload a document first.")
             st.markdown("</div>", unsafe_allow_html=True)
         else:
             add_to_memory(source_mem, "user", final_q)
@@ -1126,7 +1386,7 @@ else:
         pdf = generate_pdf(result.get("report", ""), f"InsightHub")
         fn_map = {"Global Insight": "global", "Local Insight": "local", "Web Insight": "web"}
         st.download_button(
-            label="📄 Download Report as PDF",
+            label="Download Report as PDF",
             data=pdf,
             file_name=f"insighthub_{fn_map[insight]}_report.pdf",
             mime="application/pdf",

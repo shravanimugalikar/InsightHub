@@ -27,10 +27,46 @@ def save_history(history: list):
         json.dump(history, f, indent=2, ensure_ascii=False)
 
 def append_entry(entry: dict):
-    """Loads, appends one entry, saves."""
+    """Loads, appends one entry with summary and tag generation, then saves."""
     history = load_history()
+    
+    # Generate summary if report exists and summary is missing
+    if "report" in entry and ("summary" not in entry or not entry["summary"]):
+        import re
+        # Remove markdown headers and strong tags etc. for a clean snippet
+        clean = re.sub(r'#+\s+', '', entry["report"])
+        clean = re.sub(r'\*\*(.*?)\*\*', r'\1', clean)
+        # Take first 150 chars
+        summary = (clean[:147] + '...') if len(clean) > 150 else clean
+        entry["summary"] = summary.strip()
+    
+    # Extract tags (LLM, RAG, Agents etc.)
+    if "tags" not in entry:
+        tags = []
+        rep = entry.get("report", "").upper()
+        if "RAG" in rep or "RETRIEV" in rep: tags.append("RAG")
+        if "AGENT" in rep or "AUTONOM" in rep: tags.append("Agents")
+        if "LLM" in rep or "GPT" in rep or "MODEL" in rep: tags.append("LLM")
+        if "RESEARCH" in rep: tags.append("Research")
+        entry["tags"] = list(set(tags))[:3] # Max 3 tags
+
+    # New fields for SaaS Dashboard
+    if "is_starred" not in entry:
+        entry["is_starred"] = False
+        
+    # Ensure full ISO timestamp for robust grouping
+    if "iso_ts" not in entry:
+        entry["iso_ts"] = datetime.datetime.now().isoformat()
+        
     history.append(entry)
     save_history(history)
+
+def toggle_star(index: int):
+    """Flips is_starred state for an entry."""
+    history = load_history()
+    if 0 <= index < len(history):
+        history[index]["is_starred"] = not history[index].get("is_starred", False)
+        save_history(history)
 
 def clear_history():
     """Writes [] to the file."""
