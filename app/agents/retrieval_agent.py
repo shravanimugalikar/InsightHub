@@ -10,6 +10,7 @@ Respects the needs_retrieval flag set by the Planner:
 """
 
 from typing import TypedDict
+import time
 
 
 class RetrievalOutput(TypedDict):
@@ -53,6 +54,9 @@ def run_retrieval(state: dict) -> dict:
     if source == "Global Insight":
         from app.retrieval.arxiv_search import search_arxiv
         for sq in sub_questions:
+            # Respect arXiv rate limit: at most one request every 3 seconds
+            if sq != sub_questions[0]:
+                time.sleep(3.1)
             results = search_arxiv(sq, max_results=3)
             for r in results:
                 retrieved_docs.append(

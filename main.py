@@ -47,15 +47,19 @@ st.markdown("""
     --p:             #5e48ff;
     --p2:            #4433ff;
     --cyan:          #0891b2;
-    --green:         #10b981; /* Sharper Green */
-    --orange:        #f59e0b; /* Sharper Orange */
-    --t1:            #111827; /* Near black */
-    --t2:            #4b5563; /* Body text */
-    --t3:            #9ca3af; /* Muted */
+    --green:         #10b981;
+    --orange:        #f59e0b;
+    --t1:            #111827;
+    --t2:            #4b5563;
+    --t3:            #9ca3af;
     --r:             12px;
     --rp:            100px;
     --shadow:        0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
     --shadow-hover:  0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    --sb-bg:         linear-gradient(180deg, #eeecea 0%, #e4e2dc 100%);
+    --card-bg:       #ffffff;
+    --report-bg:     rgba(255,255,255,0.85);
+    --input-bg:      rgba(255,255,255,0.92);
 }
 
 html, body, .stApp {
@@ -63,6 +67,7 @@ html, body, .stApp {
     font-family: 'DM Sans', sans-serif;
     color: var(--t1);
 }
+
 #MainMenu, footer, header { visibility: hidden; }
 .stDeployButton { display: none; }
 [data-testid="stSidebarNav"] { display: none; }
@@ -73,8 +78,8 @@ html, body, .stApp {
 
 /* ══ SIDEBAR ══ */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #eeecea 0%, #e4e2dc 100%) !important;
-    border-right: 1px solid rgba(0,0,0,0.07) !important;
+    background: var(--sb-bg) !important;
+    border-right: 1px solid var(--border) !important;
     min-width: 250px !important;
     max-width: 250px !important;
 }
@@ -268,8 +273,8 @@ html, body, .stApp {
     border-radius: 100px !important;
 }
 .search-pill-wrap .stTextInput > div > div > input {
-    background: rgba(255,255,255,0.92) !important;
-    border: 1.5px solid rgba(0,0,0,0.12) !important;
+    background: var(--input-bg) !important;
+    border: 1.5px solid var(--border) !important;
     border-radius: 100px !important;
     color: var(--t1) !important;
     font-family: 'DM Sans', sans-serif !important;
@@ -370,7 +375,7 @@ html, body, .stApp {
 
 /* Report */
 .report-wrap {
-    background: rgba(255,255,255,0.85);
+    background: var(--report-bg);
     backdrop-filter: blur(8px);
     border: 1px solid var(--border);
     border-radius: var(--r);
@@ -508,7 +513,7 @@ div[data-testid="stStatusWidget"] {
 /* ── Search bar ── */
 .hist-page .stTextInput > div > div > input {
     border-radius: 10px !important;
-    background: white !important;
+    background: var(--input-bg) !important;
     border: 1px solid var(--border) !important;
     box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important;
     height: 46px !important;
@@ -526,7 +531,7 @@ div[data-testid="stStatusWidget"] {
 .filter-chip button {
     border-radius: 8px !important; padding: 6px 16px !important;
     font-size: 12px !important; font-weight: 600 !important;
-    background: white !important; border: 1px solid var(--border) !important;
+    background: var(--card-bg) !important; border: 1px solid var(--border) !important;
     color: var(--t2) !important; transition: all 0.2s ease !important;
     box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
 }
@@ -537,7 +542,7 @@ div[data-testid="stStatusWidget"] {
 
 .sort-pill button {
     border-radius: 8px !important; font-size: 12px !important; width: 100% !important;
-    background: white !important; border: 1px solid var(--border) !important;
+    background: var(--card-bg) !important; border: 1px solid var(--border) !important;
     color: var(--t2) !important; box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
 }
 .clear-pill button {
@@ -560,7 +565,7 @@ div[data-testid="stStatusWidget"] {
     display: flex;
     align-items: center;
     gap: 12px;
-    background: white;
+    background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 0 12px;
@@ -716,7 +721,7 @@ div[data-testid="stStatusWidget"] {
 
 /* Open button */
 .hist-action-btn button {
-    background: white !important;
+    background: var(--card-bg) !important;
     border: 1px solid var(--border) !important;
     border-radius: 8px !important;
     color: var(--t2) !important;
@@ -808,7 +813,7 @@ from app.retrieval.vectorstore import create_vectorstore
 from app.agents.workflow import run_workflow
 from app.utils.memory import init_memory, add_to_memory, get_memory, clear_memory, get_last_report
 from app.utils.pdf_generator import generate_pdf
-from app.utils.history_store import load_history, append_entry, clear_history, remove_entry
+from app.utils.history_store import load_history, save_history, append_entry, clear_history, remove_entry
 import datetime
 
 
@@ -817,6 +822,7 @@ defaults = {
     "uploaded_db": None,
     "active_agent": None,
     "last_plan": {},
+    "followup_results": {},   # { tab_name: [list of result dicts] }
     "view": "research",          # "research" | "history"
     "history": load_history(),   # list of {source, query, result, ts}
     "insight": "Global Insight",
@@ -829,6 +835,9 @@ defaults = {
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 
 for tab in ["Global Insight", "Local Insight", "Web Insight"]:
     init_memory(tab)
@@ -901,6 +910,7 @@ with st.sidebar:
         st.session_state.uploaded_db = None
         st.session_state.active_agent = None
         st.session_state.last_plan = {}
+        st.session_state.followup_results = {}   # ← ADD THIS
         clear_memory(INSIGHT_SOURCE_MAP.get(insight, "Global Insight"))
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
@@ -934,13 +944,13 @@ def _md_to_html(text: str, source: str = "") -> str:
         elif s.startswith("# "):
             out.append(f"<h2 style='color:{h2_color}'>{html.escape(s[2:])}</h2>")
         elif s.startswith("- ") or s.startswith("* "):
-            out.append(f"<p style='margin:5px 0 5px 16px;color:#8888aa;'>• {html.escape(s[2:])}</p>")
+            out.append(f"<p style='margin:5px 0 5px 16px;color:var(--t2);'>• {html.escape(s[2:])}</p>")
         elif s == "":
             out.append("<br>")
         else:
             e = html.escape(s)
-            e = re.sub(r'\*\*(.*?)\*\*', r'<strong style="color:#eeeeff">\1</strong>', e)
-            out.append(f"<p style='margin:6px 0;color:#9898bb;'>{e}</p>")
+            e = re.sub(r'\*\*(.*?)\*\*', r'<strong style="color:var(--t1)">\1</strong>', e)
+            out.append(f"<p style='margin:6px 0;color:var(--t2);'>{e}</p>")
     return "\n".join(out)
 
 
@@ -1017,45 +1027,147 @@ def render_report(result, badge_cls, badge_label, source):
 
 def render_followup(tab_name, source, uploaded_db=None):
     st.markdown("<div class='div'></div>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;"
-                "color:#44445a;margin-bottom:14px;'>Follow-up</div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:12px;font-weight:700;letter-spacing:1.5px;"
+        "text-transform:uppercase;color:var(--t3);margin-bottom:20px;'>💬 Follow-up</div>",
+        unsafe_allow_html=True,
+    )
 
-    history = get_memory(tab_name)
-    # Identify the last report and the user query that produced it to skip them in the chat transcript
-    last_assistant_idx = -1
-    for i in range(len(history)-1, -1, -1):
-        if history[i]["role"] == "assistant":
-            last_assistant_idx = i
-            break
+    # Render all previous follow-up exchanges
+    followup_list = st.session_state.followup_results.get(tab_name, [])
+    for i, fu in enumerate(followup_list):
+        # User question bubble
+        st.markdown(
+            f"<div class='chat-u'>{fu['query']}</div>",
+            unsafe_allow_html=True,
+        )
+        # Context pill — shows what topic the answer is grounded in
+        original_q = st.session_state.last_plan.get(insight, {}).get("query", "")
+        if original_q:
+            st.markdown(f"""
+            <div style='font-size:11px; color:var(--t3); margin:6px 0 10px;
+                        display:flex; align-items:center; gap:6px;'>
+                <span style='background:rgba(110,86,255,0.08); color:var(--p);
+                             padding:2px 10px; border-radius:100px;
+                             font-weight:600; font-size:10px;'>
+                    In context of: {original_q[:50]}{'…' if len(original_q)>50 else ''}
+                </span>
+            </div>""", unsafe_allow_html=True)
+        # Assistant answer as styled report card
+        st.markdown(
+            f"<div class='report-wrap fi'>{_md_to_html(fu['report'], source=source)}</div>",
+            unsafe_allow_html=True,
+        )
+        # Citations if present
+        if fu.get("citations"):
+            chips = "".join(
+                f"<span class='cit-chip'>[{j+1}] {c[:70]}{'…' if len(c)>70 else ''}</span>"
+                for j, c in enumerate(fu["citations"][:15])
+            )
+            st.markdown(f"""
+            <div class='cit-wrap'>
+                <div class='cit-label'>🔗 Sources</div>
+                {chips}
+            </div>""", unsafe_allow_html=True)
+        # Download button for this follow-up
+        fu_pdf = generate_pdf(fu["report"], "InsightHub", query=fu["query"])
+        st.download_button(
+            label="📄 Download Follow-up Report",
+            data=fu_pdf,
+            file_name=f"insighthub_followup_{i+1}.pdf",
+            mime="application/pdf",
+            key=f"dl_fu_{tab_name}_{i}",
+        )
+        st.markdown("<div class='div'></div>", unsafe_allow_html=True)
 
-    skip_indices = set()
-    if last_assistant_idx != -1:
-        skip_indices.add(last_assistant_idx)
-        if last_assistant_idx > 0 and history[last_assistant_idx-1]["role"] == "user":
-            skip_indices.add(last_assistant_idx-1)
-
-    for i, msg in enumerate(history):
-        if i in skip_indices:
-            continue
-        cls = "chat-u" if msg["role"] == "user" else "chat-a"
-        st.markdown(f"<div class='{cls}'>{msg['content']}</div>", unsafe_allow_html=True)
-
-    with st.container():
-        st.markdown("<div class='followup-pill'>", unsafe_allow_html=True)
-        with st.form(key=f"fu_{tab_name}", clear_on_submit=True):
-            c1, c2 = st.columns([5, 1])
-            with c1:
-                q = st.text_input("followup", placeholder="Ask a follow-up…", label_visibility="collapsed")
-            with c2:
-                sent = st.form_submit_button("↑ Send", use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    # Follow-up input form
+    st.markdown("<div class='followup-pill'>", unsafe_allow_html=True)
+    with st.form(key=f"fu_{tab_name}", clear_on_submit=True):
+        c1, c2 = st.columns([5, 1])
+        with c1:
+            q = st.text_input(
+                "followup",
+                placeholder="Ask a follow-up…",
+                label_visibility="collapsed",
+            )
+        with c2:
+            sent = st.form_submit_button("↑ Send", use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if sent and q.strip():
+        # Build a concise chat history for the follow-up
+        initial_report = st.session_state.last_plan.get(insight, {}).get("report", "")
+        initial_query  = st.session_state.last_plan.get(insight, {}).get("query", "")
+
+        # Summarise the initial report to first 400 chars as context
+        report_summary = initial_report[:400].strip() + "…" if len(initial_report) > 400 else initial_report
+
+        focused_history = []
+
+        # Add the original query as user turn
+        if initial_query:
+            focused_history.append({
+                "role":    "user",
+                "content": initial_query,
+            })
+            # Add a short summary of the initial report as assistant turn
+            if report_summary:
+                focused_history.append({
+                    "role":    "assistant",
+                    "content": f"Research summary: {report_summary}",
+                })
+
+        # Add any previous follow-up exchanges (last 2 only to keep context tight)
+        prev_followups = st.session_state.followup_results.get(tab_name, [])
+        for fu in prev_followups[-2:]:
+            focused_history.append({"role": "user",      "content": fu["query"]})
+            focused_history.append({"role": "assistant",  "content": fu["report"][:300] + "…"})
+
+        # Add the current follow-up question
+        focused_history.append({"role": "user", "content": q.strip()})
+
+        # Rewrite follow-up to be self-contained with topic context
+        topic = initial_query or tab_name
+        if topic and topic.lower() not in q.strip().lower():
+            # Query doesn't mention the topic — prepend it
+            contextual_query = f"Regarding {topic}: {q.strip()}"
+        else:
+            contextual_query = q.strip()
+
         add_to_memory(tab_name, "user", q.strip())
-        res = run_with_progress(q.strip(), source, uploaded_db, get_memory(tab_name))
+        res = run_with_progress(
+            contextual_query, source, uploaded_db, focused_history
+        )
         if res and res.get("report"):
             add_to_memory(tab_name, "assistant", res["report"])
-            st.session_state.last_plan[insight] = res
+            
+            if tab_name not in st.session_state.followup_results:
+                st.session_state.followup_results[tab_name] = []
+                
+            st.session_state.followup_results[tab_name].append({
+                "query":          q.strip(),          # show original to user
+                "full_query":     contextual_query,   # what was actually sent
+                "report":         res.get("report", ""),
+                "citations":      res.get("citations", []),
+                "retrieved_docs": res.get("retrieved_docs", []),
+            })
+
+            # ── Persist follow-ups to history ──
+            lp = st.session_state.last_plan.get(source, {})
+            target_ts = lp.get("iso_ts")
+            target_q  = lp.get("query")
+            
+            # Find and update the history entry
+            for item in st.session_state.history:
+                # Match by iso_ts if available, else by query + ts
+                match = (target_ts and item.get("iso_ts") == target_ts) or \
+                        (not target_ts and item.get("query") == target_q)
+                
+                if match:
+                    item["followups"] = st.session_state.followup_results[tab_name]
+                    save_history(st.session_state.history)
+                    break
+
             st.rerun()
 
 
@@ -1230,10 +1342,10 @@ if st.session_state.view == "history":
                 hex_c, bg_c = source_colors_map.get(b_cls, ("#6e56ff", "rgba(110,86,255,0.1)"))
                 st.markdown(f"""
                 <div style='display:flex; align-items:center; gap:12px;
-                            background:white; border:1px solid var(--border);
+                            background:var(--card-bg); border:1px solid var(--border);
                             border-left: 3px solid {hex_c};
                             border-radius:10px; padding:14px 18px;
-                            box-shadow:0 1px 3px rgba(0,0,0,0.04);'>
+                            box-shadow:0 1px 3px rgba(0,0,0,0.04); transition: all 0.3s ease-in-out;'>
                     <span style='background:{bg_c}; color:{hex_c}; font-size:10px;
                                  font-weight:700; text-transform:uppercase;
                                  letter-spacing:0.5px; padding:3px 9px;
@@ -1251,8 +1363,18 @@ if st.session_state.view == "history":
                     st.session_state.restore_query = item["query"]
                     st.session_state.last_plan[item["insight"]] = {
                         "report": item.get("report", ""),
+                        "query":  item.get("query", ""),
+                        "ts":     item.get("ts", ""),
+                        "iso_ts": item.get("iso_ts", ""),
                         "restored": True,
                     }
+                    # Restore follow-up results if they exist for this session
+                    source_key = INSIGHT_SOURCE_MAP.get(item["insight"])
+                    if "followups" in item:
+                        st.session_state.followup_results[source_key] = item["followups"]
+                    else:
+                        st.session_state.followup_results[source_key] = []
+                    
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1363,6 +1485,7 @@ else:
                 st.markdown("</div>", unsafe_allow_html=True)
 
             if res:
+                res["query"] = final_q   # ← ADD THIS LINE before storing
                 st.session_state.last_plan[insight] = res
                 # Save to history & persistence
                 new_entry = {
@@ -1373,6 +1496,12 @@ else:
                 }
                 st.session_state.history.append(new_entry)
                 append_entry(new_entry)
+                
+                # Sync metadata back to the result so follow-ups can find the entry
+                res["iso_ts"] = new_entry.get("iso_ts")
+                res["ts"] = new_entry.get("ts")
+                res["query"] = final_q
+
                 add_to_memory(source_mem, "assistant", res.get("report", ""))
 
     # ── Show last result ──────────────────────────────────────────────────────
