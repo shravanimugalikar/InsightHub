@@ -255,8 +255,13 @@ html, body, .stApp {
     border-color: rgba(110,86,255,0.6) !important;
 }
 [data-testid="stFileUploader"] label {
-    color: var(--t2) !important;
-    font-size: 13px !important;
+    color: var(--p) !important;
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    letter-spacing: 1.2px !important;
+    text-transform: uppercase !important;
+    margin-bottom: 8px !important;
+    display: block !important;
 }
 [data-testid="stFileDropzoneInstructions"] {
     color: var(--t2) !important;
@@ -1425,24 +1430,41 @@ else:
             # ── LOCAL: file upload ────────────────────────────────────────
             if insight == "Local Insight":
                 st.markdown("<div class='upload-zone-wrap fi2'>", unsafe_allow_html=True)
-                uploaded_file = st.file_uploader(
-                    "Drop your file here",
-                    type=["pdf", "docx", "txt"],
+                uploaded_files = st.file_uploader(
+                    "DOCUMENTS & RECORDS",
+                    type=["pdf", "docx", "txt", "pptx"],
                     label_visibility="visible",
+                    accept_multiple_files=True
                 )
                 st.markdown("</div>", unsafe_allow_html=True)
 
-                if uploaded_file:
+                if uploaded_files:
                     path = os.path.join(os.getcwd(), "data", "local")
+                    # Clear directory to avoid mixing old/new uploads
+                    if os.path.exists(path):
+                        import shutil
+                        shutil.rmtree(path)
                     os.makedirs(path, exist_ok=True)
-                    fp = os.path.join(path, uploaded_file.name)
-                    with open(fp, "wb") as f:
-                        f.write(uploaded_file.getvalue())
-                    with st.spinner("Indexing document…"):
+                    
+                    for f in uploaded_files:
+                        fp = os.path.join(path, f.name)
+                        with open(fp, "wb") as out:
+                            out.write(f.getvalue())
+                            
+                    with st.spinner("Indexing documents…"):
                         docs   = load_document(path)
                         chunks = chunk_documents(docs)
                         st.session_state.uploaded_db = create_vectorstore(chunks)
-                    st.success(f"**{uploaded_file.name}** — {len(chunks)} chunks ready.")
+                    
+                    # Aggregate chunk counts per file from metadata
+                    from collections import Counter
+                    chunk_counts = Counter([os.path.basename(c.metadata.get('source', 'unknown')) for c in chunks])
+                    
+                    success_msg = "**Ingestion complete!** \n\n"
+                    for f in uploaded_files:
+                        count = chunk_counts.get(f.name, 0)
+                        success_msg += f"• **{f.name}** — {count} chunks\n"
+                    st.success(success_msg)
 
             # ── Search pill ──────────────────────────────────────────────
             st.markdown("<div class='search-pill-wrap fi3'>", unsafe_allow_html=True)
