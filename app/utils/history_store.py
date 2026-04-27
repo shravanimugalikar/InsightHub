@@ -50,16 +50,48 @@ def append_entry(entry: dict):
         if "RESEARCH" in rep: tags.append("Research")
         entry["tags"] = list(set(tags))[:3] # Max 3 tags
 
-    # New fields for SaaS Dashboard
+    # Ensure default fields
     if "is_starred" not in entry:
         entry["is_starred"] = False
         
-    # Ensure full ISO timestamp for robust grouping
-    if "iso_ts" not in entry:
+    if "followups" not in entry:
+        entry["followups"] = []
+        
+    # Guarantee unique ISO timestamp for robust grouping
+    if not entry.get("iso_ts"):
         entry["iso_ts"] = datetime.datetime.now().isoformat()
         
     history.append(entry)
     save_history(history)
+
+def update_entry_followups(iso_ts: str, followups: list, query: str = None):
+    """Updates the follow-ups list for an entry identified by iso_ts (or query fallback)."""
+    history = load_history()
+    updated = False
+    
+    # Pass 1: Try to match by ISO Timestamp (recommended)
+    if iso_ts:
+        for item in history:
+            if item.get("iso_ts") == iso_ts:
+                item["followups"] = followups
+                updated = True
+                break
+    
+    # Pass 2: Fallback to matching by Query text (case-insensitive)
+    if not updated and query:
+        for item in history:
+            item_q = item.get("query", "").strip().lower()
+            if item_q == query.strip().lower():
+                item["followups"] = followups
+                # Repair iso_ts if missing to prevent future fallback needs
+                if not item.get("iso_ts") and iso_ts:
+                    item["iso_ts"] = iso_ts
+                updated = True
+                break
+    
+    if updated:
+        save_history(history)
+    return updated
 
 def toggle_star(index: int):
     """Flips is_starred state for an entry."""

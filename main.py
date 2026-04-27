@@ -924,6 +924,8 @@ with st.sidebar:
     st.markdown(f"<div class='sb-action {hist_active}'>", unsafe_allow_html=True)
     if st.button("Session History", key="btn_hist", use_container_width=True):
         st.session_state.view = "history"
+        from app.utils.history_store import load_history
+        st.session_state.history = load_history()
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1008,12 +1010,19 @@ def render_report(result, badge_cls, badge_label, source):
     if not report:
         st.warning("No report generated.")
         return
-    st.markdown(f"""
-    <div class='stat-row fi'>
-        <div class='stat-chip'><b>{len(docs)}</b> docs</div>
-        <div class='stat-chip'><b>{len(citations)}</b> citations</div>
-        <div class='badge-{badge_cls}'>● {badge_label}</div>
-    </div>""", unsafe_allow_html=True)
+    # Only show stat row when we have real data (not on restored sessions with 0 counts)
+    if docs or citations:
+        st.markdown(f"""
+        <div class='stat-row fi'>
+            <div class='stat-chip'><b>{len(docs)}</b> docs</div>
+            <div class='stat-chip'><b>{len(citations)}</b> citations</div>
+            <div class='badge-{badge_cls}'>● {badge_label}</div>
+        </div>""", unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class='stat-row fi'>
+            <div class='badge-{badge_cls}'>● {badge_label}</div>
+        </div>""", unsafe_allow_html=True)
     st.markdown(f"""
     <div class='report-wrap fi2'>
     {_md_to_html(report, source=source)}
@@ -1058,6 +1067,8 @@ def render_followup(tab_name, source, uploaded_db=None):
                     In context of: {original_q[:50]}{'…' if len(original_q)>50 else ''}
                 </span>
             </div>""", unsafe_allow_html=True)
+        # Sub-heading for follow-up removed per UX preference
+
         # Assistant answer as styled report card
         st.markdown(
             f"<div class='report-wrap fi'>{_md_to_html(fu['report'], source=source)}</div>",
@@ -1155,23 +1166,43 @@ def render_followup(tab_name, source, uploaded_db=None):
                 "report":         res.get("report", ""),
                 "citations":      res.get("citations", []),
                 "retrieved_docs": res.get("retrieved_docs", []),
+                "plan":           res.get("plan", ""),
+                "sub_questions":  res.get("sub_questions", []),
+                "is_followup":    True,
+                "original_query": contextual_query,
+                "needs_retrieval": res.get("needs_retrieval", False),
             })
 
             # ── Persist follow-ups to history ──
-            lp = st.session_state.last_plan.get(source, {})
-            target_ts = lp.get("iso_ts")
-            target_q  = lp.get("query")
+            lp = st.session_state.last_plan.get(tab_name, {})
+            target_ts = lp.get("iso_ts", "")
+            target_q  = lp.get("query", "")
             
-            # Find and update the history entry
-            for item in st.session_state.history:
-                # Match by iso_ts if available, else by query + ts
-                match = (target_ts and item.get("iso_ts") == target_ts) or \
-                        (not target_ts and item.get("query") == target_q)
+            # Debug: show what we're trying to match against
+            if not target_ts and not target_q:
+                st.error("⚠️ Cannot link follow-up to session: no iso_ts or query found in last_plan. Please start a fresh session.")
+            else:
+                from app.utils.history_store import update_entry_followups
+                success = update_entry_followups(
+                    target_ts, 
+                    st.session_state.followup_results[tab_name],
+                    query=target_q
+                )
                 
-                if match:
-                    item["followups"] = st.session_state.followup_results[tab_name]
-                    save_history(st.session_state.history)
-                    break
+                # Also sync the local session state history
+                synced = False
+                for item in st.session_state.history:
+                    match = (target_ts and item.get("iso_ts") == target_ts) or \
+                            (target_q and item.get("query", "").strip().lower() == target_q.strip().lower())
+                    if match:
+                        item["followups"] = st.session_state.followup_results[tab_name]
+                        synced = True
+                        break
+                
+                if success:
+                    st.toast("Follow-up saved to history ✅", icon="✅")
+                else:
+                    st.warning(f"Could not link follow-up to history. iso_ts='{target_ts}', query='{target_q[:40]}'")
 
             st.rerun()
 
@@ -1345,24 +1376,32 @@ if st.session_state.view == "history":
                     "w": ("#0891b2", "rgba(8,145,178,0.10)"),
                 }
                 hex_c, bg_c = source_colors_map.get(b_cls, ("#6e56ff", "rgba(110,86,255,0.1)"))
+                fu_count = len(item.get("followups", []))
+                fu_badge = f"<span style='background:rgba(110,86,255,0.06); color:var(--p); font-size:10px; font-weight:600; padding:2px 8px; border-radius:100px; border:1px solid rgba(110,86,255,0.15); font-family:var(--font);'>+{fu_count} follow-ups</span>" if fu_count > 0 else ""
+                
                 st.markdown(f"""
                 <div style='display:flex; align-items:center; gap:12px;
                             background:var(--card-bg); border:1px solid var(--border);
                             border-left: 3px solid {hex_c};
                             border-radius:10px; padding:14px 18px;
-                            box-shadow:0 1px 3px rgba(0,0,0,0.04); transition: all 0.3s ease-in-out;'>
+                            box-shadow:0 1px 3px rgba(0,0,0,0.04); transition: all 0.3s ease;'>
                     <span style='background:{bg_c}; color:{hex_c}; font-size:10px;
                                  font-weight:700; text-transform:uppercase;
                                  letter-spacing:0.5px; padding:3px 9px;
                                  border-radius:5px; white-space:nowrap;'>{b_lbl}</span>
-                    <span style='font-size:14px; font-weight:500;
+                    <span style='font-size:14px; font-weight:500; flex:1;
                                  color:var(--t1);'>{q_trunc}</span>
+                    {fu_badge}
                 </div>""", unsafe_allow_html=True)
 
             with col_open:
                 st.markdown("<div class='hist-action-btn'>", unsafe_allow_html=True)
                 if st.button("↗", key=f"open_{orig_idx}", use_container_width=True, help="Open report"):
                     st.session_state.insight = item["insight"]
+                    # Update sidebar index
+                    s_map = {"Global Insight": 0, "Local Insight": 1, "Web Insight": 2}
+                    st.session_state.active_tab_idx = s_map.get(item["insight"], 0)
+                    
                     st.session_state.view = "research"
                     st.session_state.came_from_history = True
                     st.session_state.restore_query = item["query"]
@@ -1371,14 +1410,14 @@ if st.session_state.view == "history":
                         "query":  item.get("query", ""),
                         "ts":     item.get("ts", ""),
                         "iso_ts": item.get("iso_ts", ""),
+                        "citations": item.get("citations", []),
+                        "retrieved_docs": item.get("retrieved_docs", []),
+                        "plan": item.get("plan", ""),
+                        "sub_questions": item.get("sub_questions", []),
                         "restored": True,
                     }
-                    # Restore follow-up results if they exist for this session
                     source_key = INSIGHT_SOURCE_MAP.get(item["insight"])
-                    if "followups" in item:
-                        st.session_state.followup_results[source_key] = item["followups"]
-                    else:
-                        st.session_state.followup_results[source_key] = []
+                    st.session_state.followup_results[source_key] = item.get("followups", [])
                     
                     st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
@@ -1415,13 +1454,26 @@ else:
     badge_cls, badge_lbl = BADGE[insight][:1][0], BADGE[insight][1]
 
     # ── Heading ──────────────────────────────────────────────────────────────
-    st.markdown("""
-    <div style='padding:64px 60px 0;'>
-        <div class='page-heading fi'>
-            Uncover insights.<br>
-            <span>What's your question?</span>
-        </div>
-    </div>""", unsafe_allow_html=True)
+    # Dynamic heading based on report status
+    has_report = insight in st.session_state.last_plan
+    active_q = st.session_state.last_plan[insight].get("query", "") if has_report else ""
+    
+    if has_report and active_q:
+        st.markdown(f"""
+        <div style='padding:64px 60px 0;'>
+            <div class='page-heading fi'>
+                Research Report:<br>
+                <span>{active_q}</span>
+            </div>
+        </div>""", unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style='padding:64px 60px 0;'>
+            <div class='page-heading fi'>
+                Uncover insights.<br>
+                <span>What's your question?</span>
+            </div>
+        </div>""", unsafe_allow_html=True)
 
     # ── Main input area ───────────────────────────────────────────────────────
     with st.container():
@@ -1507,23 +1559,32 @@ else:
                 st.markdown("</div>", unsafe_allow_html=True)
 
             if res:
-                res["query"] = final_q   # ← ADD THIS LINE before storing
-                st.session_state.last_plan[insight] = res
-                # Save to history & persistence
+                res["query"] = final_q
+                # Build the history entry FIRST so iso_ts is generated
+                import datetime as _dt
                 new_entry = {
                     "insight": insight,
                     "query":   final_q,
-                    "ts":      datetime.datetime.now().strftime("%H:%M"),
+                    "ts":      _dt.datetime.now().strftime("%H:%M"),
                     "report":  res.get("report", ""),
+                    "citations": res.get("citations", []),
+                    "retrieved_docs": res.get("retrieved_docs", []),
+                    "plan": res.get("plan", ""),
+                    "sub_questions": res.get("sub_questions", []),
+                    "followups": []
                 }
-                st.session_state.history.append(new_entry)
+                
+                # append_entry writes iso_ts into new_entry in-place
                 append_entry(new_entry)
                 
-                # Sync metadata back to the result so follow-ups can find the entry
-                res["iso_ts"] = new_entry.get("iso_ts")
-                res["ts"] = new_entry.get("ts")
-                res["query"] = final_q
-
+                # NOW sync iso_ts and all metadata back into res and last_plan
+                res["iso_ts"] = new_entry["iso_ts"]
+                res["ts"]     = new_entry["ts"]
+                
+                # Store the enriched result in session state
+                st.session_state.last_plan[insight] = res
+                st.session_state.history.append(new_entry)
+                
                 add_to_memory(source_mem, "assistant", res.get("report", ""))
 
     # ── Show last result ──────────────────────────────────────────────────────
@@ -1543,12 +1604,10 @@ else:
             mime="application/pdf",
         )
 
-        # Follow-up Q&A
-        last_report = get_last_report(source_mem)
-        if last_report:
-            render_followup(
-                source_mem, source_mem,
-                uploaded_db=st.session_state.uploaded_db if insight == "Local Insight" else None,
-            )
+        # Follow-up Q&A - Render if results are in session_state, regardless of memory
+        render_followup(
+            source_mem, source_mem,
+            uploaded_db=st.session_state.uploaded_db if insight == "Local Insight" else None,
+        )
 
         st.markdown("</div>", unsafe_allow_html=True)

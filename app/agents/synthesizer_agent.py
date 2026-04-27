@@ -130,8 +130,14 @@ Final Instruction: Be thorough and accurate. Cite sources inline using [1], [2],
 
     report = llm.invoke(prompt).content
 
+    # Explicitly return important state fields to ensure they survive the graph merge
     return {
-        **state,
-        "report":    report,
-        "citations": citations,
+        "report":          report,
+        "citations":       list(dict.fromkeys(citations)),
+        "retrieved_docs":  retrieved_docs,
+        "plan":            plan,
+        "sub_questions":   state.get("sub_questions", []),
+        "is_followup":     is_followup,
+        "original_query":  query,
+        "needs_retrieval": state.get("needs_retrieval", False),
     }
