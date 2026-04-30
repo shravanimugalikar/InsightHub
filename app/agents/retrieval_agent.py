@@ -53,17 +53,27 @@ def run_retrieval(state: dict) -> dict:
 
     if source == "Global Insight":
         from app.retrieval.arxiv_search import search_arxiv
+        year_from = state.get("year_from")
+        year_until = state.get("year_until")
+        sort_by   = state.get("sort_by", "relevance")
         for sq in sub_questions:
             # Respect arXiv rate limit: at most one request every 3 seconds
             if sq != sub_questions[0]:
                 time.sleep(3.1)
-            results = search_arxiv(sq, max_results=3)
+            results = search_arxiv(
+                sq,
+                max_results=3,
+                year_from=year_from,
+                year_until=year_until,
+                sort_by=sort_by,
+            )
             for r in results:
                 retrieved_docs.append(
                     f"[ARXIV] {r['title']}\n{r['summary']}"
                 )
+                year_tag = f" [{r['year']}]" if r.get("year") else ""
                 citations.append(
-                    f"arXiv — {r['title']} ({r.get('url', 'arxiv.org')})"
+                    f"arXiv{year_tag} — {r['title']} ({r.get('url', 'arxiv.org')})"
                 )
 
     elif source == "Local Insight":

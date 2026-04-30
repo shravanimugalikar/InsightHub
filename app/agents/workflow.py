@@ -24,13 +24,18 @@ class AgentState(TypedDict, total=False):
     source:         str
     uploaded_db:    Optional[object]
     chat_history:   Optional[List[dict]]
-    session_context: Optional[dict]      # stored from prior run
+    session_context: Optional[dict]
+
+    # ── arXiv filters (Global Insight only) ─────────────────────────────
+    year_from:      Optional[int]
+    year_until:     Optional[int]
+    sort_by:        Optional[str]   # "relevance" | "latest"
 
     # ── Planner output ───────────────────────────────────────────────────
     plan:            str
     sub_questions:   List[str]
     original_query:  str
-    needs_retrieval: bool                # True → run retrieval; False → skip
+    needs_retrieval: bool
     is_followup:     bool
 
     # ── Retrieval output ─────────────────────────────────────────────────
@@ -42,10 +47,6 @@ class AgentState(TypedDict, total=False):
 
 
 def _route_after_planner(state: dict) -> str:
-    """
-    Conditional router: if Planner says retrieval is not needed,
-    jump straight to the synthesizer node.
-    """
     if state.get("needs_retrieval", True):
         return "retrieval"
     return "synthesizer"
@@ -60,7 +61,6 @@ def build_graph() -> StateGraph:
 
     graph.set_entry_point("planner")
 
-    # Conditional edge: retrieval may be skipped for context-only follow-ups
     graph.add_conditional_edges(
         "planner",
         _route_after_planner,
@@ -86,6 +86,9 @@ def run_workflow(
     uploaded_db=None,
     chat_history:   list = None,
     session_context: dict = None,
+    year_from:      int = None,
+    year_until:     int = None,
+    sort_by:        str = "relevance",
 ) -> dict:
     """
     Main entry point.
@@ -96,6 +99,9 @@ def run_workflow(
         uploaded_db     – Vector store for Local Insights (or None).
         chat_history    – List of prior {role, content} messages.
         session_context – Stored research context from memory.get_session_context().
+        year_from       – Filter arXiv papers from this year (Global Insight only).
+        year_until      – Filter arXiv papers up to this year (Global Insight only).
+        sort_by         – "relevance" or "latest" (Global Insight only).
 
     Returns:
         dict with keys: plan, sub_questions, needs_retrieval, is_followup,
@@ -107,6 +113,9 @@ def run_workflow(
         "uploaded_db":     uploaded_db,
         "chat_history":    chat_history    or [],
         "session_context": session_context or {},
+        "year_from":       year_from,
+        "year_until":      year_until,
+        "sort_by":         sort_by,
     }
 
     return _compiled_graph.invoke(initial_state)

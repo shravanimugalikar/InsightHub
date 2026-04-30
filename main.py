@@ -268,63 +268,175 @@ html, body, .stApp {
 }
 [data-testid="stFileDropzoneInstructions"] svg { display: none !important; }
 
-/* ── Search pill form ── */
-.search-pill-wrap {
-    position: relative;
-    width: 100%;
+/* ── Filter section card via background on parent block ── */
+
+/* Target the stVerticalBlock that contains the filter header */
+/* We go up two levels to ensure we catch the block container, not just the header's own div */
+div[data-testid="stVerticalBlock"]:has(> .element-container .arxiv-filter-header) {
+    background: white !important;
+    border: 1.5px solid rgba(110,86,255,0.32) !important;
+    border-radius: 14px !important;
+    padding: 22px 24px 10px !important;
+    margin-top: 10px !important;
+    box-shadow: 0 4px 20px rgba(110,86,255,0.07) !important;
 }
-/* Style the form so it appears inline */
-.search-pill-wrap .stTextInput > div > div {
-    border-radius: 100px !important;
+
+/* Header row inside card */
+.arxiv-filter-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
 }
-.search-pill-wrap .stTextInput > div > div > input {
-    background: var(--input-bg) !important;
-    border: 1.5px solid var(--border) !important;
-    border-radius: 100px !important;
-    color: var(--t1) !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-size: 16px !important;
-    padding: 18px 72px 18px 28px !important;
-    transition: border-color 0.25s ease, box-shadow 0.25s ease !important;
-    height: 62px !important;
+.arxiv-filter-icon {
+    font-size: 13px;
+    color: var(--p);
 }
-.search-pill-wrap .stTextInput > div > div > input::placeholder {
-    color: var(--t3) !important;
-    font-size: 15px !important;
+.arxiv-filter-title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    font-variant: small-caps !important;
+    color: var(--t3);
 }
-.search-pill-wrap .stTextInput > div > div > input:focus {
-    border-color: rgba(110,86,255,0.55) !important;
-    box-shadow: 0 0 0 4px rgba(110,86,255,0.12), 0 8px 40px rgba(110,86,255,0.15) !important;
+
+/* Column labels */
+.filter-col-label {
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    color: var(--t2) !important;
+    font-variant: small-caps !important;
+    letter-spacing: 0.6px !important;
+    margin: 8px 0 18px 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    line-height: 1 !important;
+}
+
+/* Ensure selectbox has consistent spacing from label */
+div:has(> .arxiv-filter-header) [data-testid="stSelectbox"] {
+    margin-top: 0 !important;
+}
+
+/* Active chips row */
+.filter-active-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 12px;
+    padding: 10px 0 12px;
+    border-top: 1px solid var(--border);
+}
+.filter-chip-label {
+    font-size: 11px;
+    color: var(--t3);
+    font-weight: 500;
+}
+.filter-chip {
+    background: rgba(110,86,255,0.08);
+    color: var(--p);
+    padding: 3px 12px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* Selectbox inside filter */
+div:has(> .arxiv-filter-header) [data-testid="stSelectbox"] > div > div {
+    border-radius: 10px !important;
+    border: 1px solid var(--border) !important;
+    background: white !important;
+    font-size: 13px !important;
+    transition: border-color 0.2s ease !important;
+}
+div:has(> .arxiv-filter-header) [data-testid="stSelectbox"] > div > div:focus-within {
+    border-color: var(--p) !important;
+    box-shadow: 0 0 0 3px rgba(110,86,255,0.10) !important;
+}
+
+/* ── Search pill — remove outer container border ── */
+/* Kill Streamlit's default form border that wraps the pill */
+.search-pill-outer [data-testid="stForm"] {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 !important;
     outline: none !important;
 }
-.search-pill-wrap .stTextInput label { display: none !important; }
-
-/* Arrow submit button inside/beside the pill */
-.search-pill-wrap .stButton > button {
-    background: linear-gradient(135deg, #6e56ff, #a78bfa) !important;
+/* Also kill any stVerticalBlock border around the form */
+div:has(> [data-testid="stForm"]) {
     border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+/* ── Buttons — circular, no red border ── */
+.search-pill-outer [data-testid="stFormSubmitButton"] button {
     border-radius: 50% !important;
     width: 44px !important;
     height: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
     padding: 0 !important;
-    font-size: 18px !important;
+    outline: none !important;
+    box-shadow: none !important;
+    margin-top: 9px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    box-shadow: 0 4px 18px rgba(110,86,255,0.4) !important;
-    transition: all 0.25s ease !important;
-    position: absolute !important;
-    right: 10px !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    min-height: unset !important;
-    letter-spacing: 0 !important;
+}
+
+/* ↑ send */
+.search-pill-outer [data-testid="stFormSubmitButton"]:first-of-type button {
+    background: linear-gradient(135deg, #6e56ff, #a78bfa) !important;
+    border: none !important;
     color: white !important;
+    box-shadow: 0 4px 14px rgba(110,86,255,0.35) !important;
 }
-.search-pill-wrap .stButton > button:hover {
-    box-shadow: 0 6px 28px rgba(110,86,255,0.6) !important;
-    transform: translateY(-50%) scale(1.07) !important;
+
+/* Pull the buttons closer together horizontally */
+.search-pill-outer [data-testid="column"]:nth-of-type(2) {
+    margin-left: -8px !important;
 }
+.search-pill-outer [data-testid="column"]:nth-of-type(3) {
+    margin-left: 4px !important;
+}
+.search-pill-outer [data-testid="stFormSubmitButton"]:first-of-type button:hover {
+    transform: scale(1.08) !important;
+    box-shadow: 0 6px 20px rgba(110,86,255,0.5) !important;
+}
+
+/* ⚙ gear — white circle, gray border, NO red */
+.search-pill-outer [data-testid="stFormSubmitButton"]:last-of-type button {
+    background: white !important;
+    border: 1.5px solid rgba(0,0,0,0.12) !important;
+    color: var(--t2) !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06) !important;
+}
+.search-pill-outer [data-testid="stFormSubmitButton"]:last-of-type button:hover {
+    border-color: var(--p) !important;
+    color: var(--p) !important;
+    background: rgba(110,86,255,0.05) !important;
+    transform: rotate(45deg) !important;
+    box-shadow: none !important;
+}
+
+/* Prevent red on focus/active states */
+.search-pill-outer [data-testid="stFormSubmitButton"] button:focus,
+.search-pill-outer [data-testid="stFormSubmitButton"] button:focus-visible,
+.search-pill-outer [data-testid="stFormSubmitButton"] button:active {
+    outline: none !important;
+    border-color: rgba(0,0,0,0.12) !important;
+    box-shadow: none !important;
+}
+
+
+
+
 
 /* ── Results area ── */
 .results-area {
@@ -806,7 +918,6 @@ div[data-testid="stStatusWidget"] {
     gap: 0 !important;
 }
 
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -836,6 +947,11 @@ defaults = {
     "hist_sort_newest": True,
     "hist_confirm_clear": False,
     "came_from_history": False,
+    # arXiv filters (Global Insight only)
+    "year_from":  2020,
+    "year_to":    datetime.datetime.now().year,
+    "arxiv_sort": "Relevance",
+    "show_arxiv_settings": False,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -961,7 +1077,8 @@ def _md_to_html(text: str, source: str = "") -> str:
     return "\n".join(out)
 
 
-def run_with_progress(query, source, uploaded_db=None, chat_history=None):
+def run_with_progress(query, source, uploaded_db=None, chat_history=None,
+                      year_from=None, year_until=None, sort_by="relevance"):
     result = {}
     with st.status("Researching...", expanded=True) as status:
         st.write("Analyzing query…")
@@ -972,6 +1089,9 @@ def run_with_progress(query, source, uploaded_db=None, chat_history=None):
                 query=query, source=source,
                 uploaded_db=uploaded_db,
                 chat_history=chat_history or [],
+                year_from=year_from,
+                year_until=year_until,
+                sort_by=sort_by,
             )
             st.write("Retrieving documents…")
             st.session_state.active_agent = "Retrieval"
@@ -1518,21 +1638,86 @@ else:
                         success_msg += f"• **{f.name}** — {count} chunks\n"
                     st.success(success_msg)
 
-            # ── Search pill ──────────────────────────────────────────────
-            st.markdown("<div class='search-pill-wrap fi3'>", unsafe_allow_html=True)
+            # Block 1: Search pill
+            st.markdown("<div class='search-pill-outer fi3'>", unsafe_allow_html=True)
             with st.form("query_form", clear_on_submit=True):
-                col_input, col_btn = st.columns([12, 1])
-                with col_input:
-                    # If we just restored, the input value is pre-populated
+                col_q, col_send, col_gear = st.columns([18, 1, 1], gap="small")
+                with col_q:
                     user_input = st.text_input(
                         "query",
                         placeholder="Dive into a topic…",
                         label_visibility="collapsed",
                         value=query_to_run if restore_active else "",
                     )
-                with col_btn:
+                with col_send:
                     submitted = st.form_submit_button("↑")
+                with col_gear:
+                    if insight == "Global Insight":
+                        gear_clicked = st.form_submit_button("⚙")
+                    else:
+                        gear_clicked = False
             st.markdown("</div>", unsafe_allow_html=True)
+
+            # Toggle settings panel
+            if gear_clicked:
+                st.session_state.show_arxiv_settings = not st.session_state.get("show_arxiv_settings", False)
+                st.rerun()
+
+            # Block 2: Filter card — separate from search pill entirely
+            if insight == "Global Insight" and st.session_state.get("show_arxiv_settings", False):
+                with st.container():
+                    current_year = datetime.datetime.now().year
+                    years = list(range(2015, current_year + 1))
+
+                    # Anchor class — CSS uses this to style the entire section
+                    st.markdown("<div class='arxiv-filter-section'></div>",
+                                unsafe_allow_html=True)
+
+                    st.markdown("""
+                    <div class='arxiv-filter-header'>
+                        <span class='arxiv-filter-icon'>⚙</span>
+                        <span class='arxiv-filter-title'>arXiv Paper Filter</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    fc1, fc2, fc3 = st.columns(3)
+                    with fc1:
+                        st.markdown("<p class='filter-col-label'>📅 Start Year</p>",
+                                    unsafe_allow_html=True)
+                        year_from = st.selectbox(
+                            "Start Year", years,
+                            index=years.index(st.session_state.get("year_from", 2020)),
+                            key="sel_year_from", label_visibility="collapsed")
+                        st.session_state.year_from = year_from
+                    with fc2:
+                        st.markdown("<p class='filter-col-label'>📅 End Year</p>",
+                                    unsafe_allow_html=True)
+                        year_to = st.selectbox(
+                            "End Year", years,
+                            index=years.index(st.session_state.get("year_to", current_year)),
+                            key="sel_year_to", label_visibility="collapsed")
+                        st.session_state.year_to = year_to
+                    with fc3:
+                        st.markdown("<p class='filter-col-label'>↕ Sort Results By</p>",
+                                    unsafe_allow_html=True)
+                        sort_opts = ["Relevance", "Latest First", "Oldest First"]
+                        sort_by = st.selectbox(
+                            "Sort Results By", sort_opts,
+                            index=sort_opts.index(
+                                st.session_state.get("arxiv_sort", "Relevance")),
+                            key="sel_sort", label_visibility="collapsed")
+                        st.session_state.arxiv_sort = sort_by
+
+                    st.markdown(f"""
+                    <div class='filter-active-row'>
+                        <span class='filter-chip-label'>Active:</span>
+                        <span class='filter-chip'>{year_from} – {year_to}</span>
+                        <span class='filter-chip'>{sort_by}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+
+
 
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1555,6 +1740,9 @@ else:
                 res = run_with_progress(
                     final_q, source_mem,
                     uploaded_db=st.session_state.uploaded_db if insight == "Local Insight" else None,
+                    year_from=st.session_state.get("year_from") if insight == "Global Insight" else None,
+                    year_until=st.session_state.get("year_to") if insight == "Global Insight" else None,
+                    sort_by={"Relevance": "relevance", "Latest First": "latest", "Oldest First": "relevance"}.get(st.session_state.get("arxiv_sort", "Relevance"), "relevance") if insight == "Global Insight" else "relevance",
                 )
                 st.markdown("</div>", unsafe_allow_html=True)
 
