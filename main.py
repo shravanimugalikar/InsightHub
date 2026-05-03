@@ -928,7 +928,7 @@ from app.ingestion.chunker import chunk_documents
 from app.retrieval.vectorstore import create_vectorstore
 from app.agents.workflow import run_workflow
 from app.utils.memory import init_memory, add_to_memory, get_memory, clear_memory, get_last_report
-from app.utils.pdf_generator import generate_pdf
+from app.utils.pdf_generator import generate_pdf, make_filename
 from app.utils.history_store import load_history, save_history, append_entry, clear_history, remove_entry
 import datetime
 
@@ -1063,16 +1063,27 @@ def _md_to_html(text: str, source: str = "") -> str:
     for line in lines:
         s = line.strip()
         if s.startswith("## "):
-            out.append(f"<h2 style='color:{h2_color}'>{html.escape(s[3:])}</h2>")
+            content = html.escape(s[3:])
+            # Handle links in headers
+            content = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2" target="_blank" style="color:inherit;text-decoration:underline;">\1</a>', content)
+            out.append(f"<h2 style='color:{h2_color}'>{content}</h2>")
         elif s.startswith("# "):
-            out.append(f"<h2 style='color:{h2_color}'>{html.escape(s[2:])}</h2>")
+            content = html.escape(s[2:])
+            content = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2" target="_blank" style="color:inherit;text-decoration:underline;">\1</a>', content)
+            out.append(f"<h2 style='color:{h2_color}'>{content}</h2>")
         elif s.startswith("- ") or s.startswith("* "):
-            out.append(f"<p style='margin:5px 0 5px 16px;color:var(--t2);'>• {html.escape(s[2:])}</p>")
+            content = html.escape(s[2:])
+            # Bold
+            content = re.sub(r'\*\*(.*?)\*\*', r'<strong style="color:var(--t1)">\1</strong>', content)
+            # Links
+            content = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2" target="_blank" style="color:var(--p);text-decoration:none;font-weight:600;">\1</a>', content)
+            out.append(f"<p style='margin:5px 0 5px 16px;color:var(--t2);'>• {content}</p>")
         elif s == "":
             out.append("<br>")
         else:
             e = html.escape(s)
             e = re.sub(r'\*\*(.*?)\*\*', r'<strong style="color:var(--t1)">\1</strong>', e)
+            e = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2" target="_blank" style="color:var(--p);text-decoration:none;font-weight:600;">\1</a>', e)
             out.append(f"<p style='margin:6px 0;color:var(--t2);'>{e}</p>")
     return "\n".join(out)
 
@@ -1148,10 +1159,23 @@ def render_report(result, badge_cls, badge_label, source):
     {_md_to_html(report, source=source)}
     </div>""", unsafe_allow_html=True)
     if citations:
-        chips = "".join(
-            f"<span class='cit-chip'>[{i+1}] {c[:70]}{'…' if len(c)>70 else ''}</span>"
-            for i, c in enumerate(citations[:15])
-        )
+        import re
+        chips_list = []
+        for i, c in enumerate(citations[:15]):
+            # Try to extract URL from citation string
+            url_match = re.search(r'\((https?://\S+)\)', c)
+            if url_match:
+                link = url_match.group(1)
+                clean_cit = c.replace(f"({link})", "").strip()
+                chips_list.append(
+                    f"<a href='{link}' target='_blank' style='text-decoration:none;'>"
+                    f"<span class='cit-chip'>[{i+1}] {clean_cit[:70]}{'…' if len(clean_cit)>70 else ''}</span>"
+                    f"</a>"
+                )
+            else:
+                chips_list.append(f"<span class='cit-chip'>[{i+1}] {c[:70]}{'…' if len(c)>70 else ''}</span>")
+        
+        chips = "".join(chips_list)
         st.markdown(f"""
         <div class='cit-wrap fi3'>
             <div class='cit-label'>Sources</div>
@@ -1196,21 +1220,41 @@ def render_followup(tab_name, source, uploaded_db=None):
         )
         # Citations if present
         if fu.get("citations"):
-            chips = "".join(
-                f"<span class='cit-chip'>[{j+1}] {c[:70]}{'…' if len(c)>70 else ''}</span>"
-                for j, c in enumerate(fu["citations"][:15])
-            )
+            import re
+            chips_list = []
+            for j, c in enumerate(fu["citations"][:15]):
+                url_match = re.search(r'\((https?://\S+)\)', c)
+                if url_match:
+                    link = url_match.group(1)
+                    clean_cit = c.replace(f"({link})", "").strip()
+                    chips_list.append(
+                        f"<a href='{link}' target='_blank' style='text-decoration:none;'>"
+                        f"<span class='cit-chip'>[{j+1}] {clean_cit[:70]}{'…' if len(clean_cit)>70 else ''}</span>"
+                        f"</a>"
+                    )
+                else:
+                    chips_list.append(f"<span class='cit-chip'>[{j+1}] {c[:70]}{'…' if len(c)>70 else ''}</span>")
+            
+            chips = "".join(chips_list)
             st.markdown(f"""
             <div class='cit-wrap'>
                 <div class='cit-label'>🔗 Sources</div>
                 {chips}
             </div>""", unsafe_allow_html=True)
         # Download button for this follow-up
-        fu_pdf = generate_pdf(fu["report"], "InsightHub", query=fu["query"])
+        fu_pdf_data = generate_pdf(
+            fu["report"],
+            "InsightHub",
+            query=fu.get("query", "Follow-up Report"),
+        )
+        fu_filename = make_filename(
+            fu.get("query", "followup"),
+            prefix="insighthub_followup",
+        )
         st.download_button(
-            label="📄 Download Follow-up Report",
-            data=fu_pdf,
-            file_name=f"insighthub_followup_{i+1}.pdf",
+            label="Download Follow-up Report as PDF",
+            data=fu_pdf_data,
+            file_name=fu_filename,
             mime="application/pdf",
             key=f"dl_fu_{tab_name}_{i}",
         )
@@ -1783,13 +1827,16 @@ else:
         render_plan(result)
         render_report(result, badge_cls, badge_lbl, insight)
 
-        pdf = generate_pdf(result.get("report", ""), f"InsightHub")
-        fn_map = {"Global Insight": "global", "Local Insight": "local", "Web Insight": "web"}
+        _query    = result.get("query", "") or st.session_state.get("last_query", "")
+        _pdf_data = generate_pdf(result.get("report", ""), "InsightHub", query=_query)
+        _filename = make_filename(_query, prefix="insighthub_report")
+
         st.download_button(
             label="Download Report as PDF",
-            data=pdf,
-            file_name=f"insighthub_{fn_map[insight]}_report.pdf",
+            data=_pdf_data,
+            file_name=_filename,
             mime="application/pdf",
+            key="dl_main_report",
         )
 
         # Follow-up Q&A - Render if results are in session_state, regardless of memory

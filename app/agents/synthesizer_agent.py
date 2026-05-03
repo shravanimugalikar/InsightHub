@@ -24,6 +24,14 @@ llm = ChatGroq(
 )
 
 
+def _truncate_context(docs: list, max_chars: int = 25000) -> str:
+    """Join docs and truncate to a safe character limit."""
+    full_text = "\n\n".join(docs)
+    if len(full_text) <= max_chars:
+        return full_text
+    return full_text[:max_chars] + "... [Context truncated due to size limits]"
+
+
 def run_synthesizer(state: dict) -> dict:
     """
     LangGraph node: synthesizer.
@@ -43,8 +51,8 @@ def run_synthesizer(state: dict) -> dict:
     is_followup   = state.get("is_followup", False)
     source        = state.get("source", "")
 
-    # Cap context to avoid token overflow
-    context = "\n\n".join(retrieved_docs[:10])
+    # Cap context to avoid token overflow — roughly 6-8k tokens
+    context = _truncate_context(retrieved_docs, max_chars=25000)
 
     citation_block = "\n".join(
         [f"{i+1}. {c}" for i, c in enumerate(citations[:15])]
@@ -86,6 +94,7 @@ Instructions:
 - Be concise but thorough — this is a focused response, NOT a full report re-generation.
 - Use markdown formatting: bold key terms, bullet points for lists, ## for section headers if needed.
 - Cite sources inline with [N] notation where applicable.
+- For the References section (if you include one), provide the source URL as a markdown link [Link](url) immediately after the title/source name.
 - Do NOT repeat the entire prior report; build on it."""
 
         report = llm.invoke(prompt).content
@@ -124,7 +133,7 @@ Generate a well-structured research report with the following sections. Use mark
 (Brief closing thoughts and implications)
 
 ## References
-(List only the academic/web sources provided in the 'Available Citations' section above. Number them [1], [2], etc. If no citations were provided, do NOT include this section at all.)
+(List only the academic/web sources provided in the 'Available Citations' section above. Number them [1], [2], etc. For each source, include the title/name followed by its URL in markdown format: [Link](url). If no citations were provided, do NOT include this section at all.)
 
 Final Instruction: Be thorough and accurate. Cite sources inline using [1], [2], etc., corresponding to the References list. Do NOT use placeholder text like '[Insert Citation]'."""
 

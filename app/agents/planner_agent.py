@@ -39,7 +39,7 @@ def run_planner(state: dict) -> dict:
       plan, sub_questions, original_query,
       needs_retrieval (bool), is_followup (bool)
     """
-    query         = state["query"]
+    query         = state["query"][:5000]   # Cap query length
     source        = state["source"]
     chat_history  = state.get("chat_history", [])
     session_ctx   = state.get("session_context", {})
@@ -56,6 +56,8 @@ def run_planner(state: dict) -> dict:
             role = "User" if msg["role"] == "user" else "Assistant"
             recent.append(f"{role}: {msg['content'][:200]}")
         history_snippet = "\n".join(recent)
+        if len(history_snippet) > 1000:
+            history_snippet = history_snippet[:1000] + "... [Truncated]"
 
         followup_prompt = f"""You are a research planning agent handling a FOLLOW-UP question.
 

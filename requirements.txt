@@ -12,6 +12,7 @@ python-docx
 pandas
 tiktoken
 reportlab
+fpdf2
 python-dotenv
 arxiv
 requests

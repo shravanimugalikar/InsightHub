@@ -57,7 +57,9 @@ def generate_structured_report(
     Generates a full structured research report.
     Used directly by the Synthesizer agent via workflow.py.
     """
-    context = "\n\n".join([doc.page_content for doc in docs[:10]])
+    context = "\n\n".join([doc.page_content for doc in docs])
+    if len(context) > 25000:
+        context = context[:25000] + "... [Truncated]"
     citation_block = ""
     if citations:
         citation_block = "\n".join(
