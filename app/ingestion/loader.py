@@ -14,18 +14,25 @@ def load_document(path):
             
         ext = file.lower().split('.')[-1]
         try:
+            docs = []
             if ext == 'pdf':
                 loader = PyPDFLoader(fpath)
-                documents.extend(loader.load())
+                docs = loader.load()
             elif ext == 'docx':
                 loader = Docx2txtLoader(fpath)
-                documents.extend(loader.load())
+                docs = loader.load()
             elif ext == 'txt':
                 loader = TextLoader(fpath, encoding='utf-8')
-                documents.extend(loader.load())
+                docs = loader.load()
             elif ext == 'pptx':
                 loader = UnstructuredPowerPointLoader(fpath)
-                documents.extend(loader.load())
+                docs = loader.load()
+                
+            for doc in docs:
+                doc.metadata['type'] = 'local'
+                doc.metadata['title'] = file
+                
+            documents.extend(docs)
         except Exception as e:
             print(f"Error loading {file}: {e}")
             

@@ -113,7 +113,7 @@ User Query: {query}
 
 Your job:
 1. Write a concise research plan (2-3 sentences) describing the approach.
-2. Break down the query into 2-4 focused sub-questions that will guide the retrieval process.
+2. Break down the query into 1-2 focused sub-questions that will guide the retrieval process.
 
 Respond ONLY with valid JSON in this exact format:
 {{

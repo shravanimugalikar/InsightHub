@@ -520,15 +520,29 @@ div:has(> [data-testid="stForm"]) {
     box-shadow: 0 2px 16px rgba(0,0,0,0.06);
 }
 .cit-label { font-size: 10px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); margin-bottom: 10px; }
-.cit-chip {
-    display: inline-block; background: rgba(110,86,255,0.09);
-    border: 1px solid rgba(110,86,255,0.2); border-radius: 7px;
-    padding: 3px 11px; font-size: 10px; color: var(--p2);
-    margin: 3px 3px 3px 0;
-    font-family: 'JetBrains Mono', monospace;
-    transition: background 0.2s ease !important;
+
+/* Citation rows — replaces old chip style */
+.cit-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
 }
-.cit-chip:hover { background: rgba(110,86,255,0.16) !important; cursor: pointer; }
+.cit-row:last-child { border-bottom: none; }
+.cit-text { color: var(--t2); line-height: 1.5; }
+.cit-link {
+    color: var(--p);
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    text-decoration: none;
+    word-break: break-all;
+}
+.cit-link:hover {
+    text-decoration: underline;
+    color: var(--p2);
+}
 
 /* Chat */
 .chat-u {
@@ -1050,8 +1064,18 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════════════════
 # HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
-def _md_to_html(text: str, source: str = "") -> str:
-    import html, re
+def _md_to_html(text: str, source: str = "", strip_references: bool = False) -> str:
+    import html as html_lib, re
+
+    if strip_references:
+        # Remove ## References and everything after it
+        text = re.sub(
+            r'\n?##\s*(References|Bibliography|Sources)\s*\n.*$',
+            '',
+            text,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+
     h2_color = {
         "Global Insight": "#16a34a",
         "Local Insight":  "#ea580c",
@@ -1063,16 +1087,16 @@ def _md_to_html(text: str, source: str = "") -> str:
     for line in lines:
         s = line.strip()
         if s.startswith("## "):
-            content = html.escape(s[3:])
+            content = html_lib.escape(s[3:])
             # Handle links in headers
             content = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2" target="_blank" style="color:inherit;text-decoration:underline;">\1</a>', content)
             out.append(f"<h2 style='color:{h2_color}'>{content}</h2>")
         elif s.startswith("# "):
-            content = html.escape(s[2:])
+            content = html_lib.escape(s[2:])
             content = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2" target="_blank" style="color:inherit;text-decoration:underline;">\1</a>', content)
             out.append(f"<h2 style='color:{h2_color}'>{content}</h2>")
         elif s.startswith("- ") or s.startswith("* "):
-            content = html.escape(s[2:])
+            content = html_lib.escape(s[2:])
             # Bold
             content = re.sub(r'\*\*(.*?)\*\*', r'<strong style="color:var(--t1)">\1</strong>', content)
             # Links
@@ -1081,20 +1105,45 @@ def _md_to_html(text: str, source: str = "") -> str:
         elif s == "":
             out.append("<br>")
         else:
-            e = html.escape(s)
+            e = html_lib.escape(s)
             e = re.sub(r'\*\*(.*?)\*\*', r'<strong style="color:var(--t1)">\1</strong>', e)
             e = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2" target="_blank" style="color:var(--p);text-decoration:none;font-weight:600;">\1</a>', e)
             out.append(f"<p style='margin:6px 0;color:var(--t2);'>{e}</p>")
     return "\n".join(out)
 
 
+def _deep_serialize(obj):
+    """Recursively serialize objects to ensure JSON compatibility."""
+    if hasattr(obj, "page_content"):
+        return {"page_content": obj.page_content, "metadata": _deep_serialize(getattr(obj, "metadata", {}))}
+    elif hasattr(obj, "dict"):
+        try:
+            return _deep_serialize(obj.dict())
+        except Exception:
+            pass
+    if isinstance(obj, dict):
+        return {str(k): _deep_serialize(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_deep_serialize(v) for v in obj]
+    elif isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    else:
+        return str(obj)
+
+
 def run_with_progress(query, source, uploaded_db=None, chat_history=None,
                       year_from=None, year_until=None, sort_by="relevance"):
     result = {}
     with st.status("Researching...", expanded=True) as status:
-        st.write("Analyzing query…")
+        st.write("Planning research approach...")
         st.session_state.active_agent = "Planner"
-        time.sleep(0.2)
+        time.sleep(0.25)
+        st.write(f"Fetching papers from {'arXiv' if source == 'Global Insight' else source}...")
+        st.session_state.active_agent = "Retrieval"
+        time.sleep(0.25)
+        st.write("Synthesizing report...")
+        st.session_state.active_agent = "Synthesizer"
+        time.sleep(0.25)
         try:
             result = run_workflow(
                 query=query, source=source,
@@ -1104,12 +1153,6 @@ def run_with_progress(query, source, uploaded_db=None, chat_history=None,
                 year_until=year_until,
                 sort_by=sort_by,
             )
-            st.write("Retrieving documents…")
-            st.session_state.active_agent = "Retrieval"
-            time.sleep(0.15)
-            st.write("Synthesizing report…")
-            st.session_state.active_agent = "Synthesizer"
-            time.sleep(0.15)
             status.update(label="Done!", state="complete", expanded=False)
             st.session_state.active_agent = None
         except Exception as e:
@@ -1134,53 +1177,58 @@ def render_plan(result):
     </div>""", unsafe_allow_html=True)
 
 
-def render_report(result, badge_cls, badge_label, source):
+def render_report(result: dict, badge_cls: str, badge_label: str, source: str) -> None:
     report    = result.get("report", "")
     citations = result.get("citations", [])
     docs      = result.get("retrieved_docs", [])
+
     if not report:
         st.warning("No report generated.")
         return
-    # Only show stat row when we have real data (not on restored sessions with 0 counts)
-    if docs or citations:
-        st.markdown(f"""
-        <div class='stat-row fi'>
-            <div class='stat-chip'><b>{len(docs)}</b> docs</div>
-            <div class='stat-chip'><b>{len(citations)}</b> citations</div>
-            <div class='badge-{badge_cls}'>● {badge_label}</div>
-        </div>""", unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <div class='stat-row fi'>
-            <div class='badge-{badge_cls}'>● {badge_label}</div>
-        </div>""", unsafe_allow_html=True)
+
+    # Stat row
     st.markdown(f"""
-    <div class='report-wrap fi2'>
-    {_md_to_html(report, source=source)}
+    <div class='stat-row fi'>
+        <div class='stat-chip'>📄 <b>{len(docs)}</b> docs</div>
+        <div class='stat-chip'>🔗 <b>{len(citations)}</b> citations</div>
+        <div class='badge-{badge_cls}'>● {badge_label}</div>
     </div>""", unsafe_allow_html=True)
+
+    # Report body
+    st.markdown(
+        f"<div class='report-wrap fi2'>{_md_to_html(report, source=source, strip_references=True)}</div>",
+        unsafe_allow_html=True,
+    )
+
+    # Citations — render as numbered list with clickable URLs
     if citations:
-        import re
-        chips_list = []
-        for i, c in enumerate(citations[:15]):
-            # Try to extract URL from citation string
-            url_match = re.search(r'\((https?://\S+)\)', c)
+        cit_rows = ""
+        for cit in citations[:15]:
+            url_match = re.search(r'(https?://\S+)', cit)
             if url_match:
-                link = url_match.group(1)
-                clean_cit = c.replace(f"({link})", "").strip()
-                chips_list.append(
-                    f"<a href='{link}' target='_blank' style='text-decoration:none;'>"
-                    f"<span class='cit-chip'>[{i+1}] {clean_cit[:70]}{'…' if len(clean_cit)>70 else ''}</span>"
-                    f"</a>"
+                url      = url_match.group(1).rstrip('.,)')
+                cit_text = cit.replace(url_match.group(1), "").strip().rstrip(".")
+                cit_rows += (
+                    "<div class='cit-row'>"
+                    f"<span class='cit-text'>{cit_text}</span>"
+                    f"<a href='{url}' target='_blank' class='cit-link'>"
+                    f"&#8599; {url[:60]}{'&#8230;' if len(url) > 60 else ''}"
+                    "</a></div>"
                 )
             else:
-                chips_list.append(f"<span class='cit-chip'>[{i+1}] {c[:70]}{'…' if len(c)>70 else ''}</span>")
-        
-        chips = "".join(chips_list)
-        st.markdown(f"""
-        <div class='cit-wrap fi3'>
-            <div class='cit-label'>Sources</div>
-            {chips}
-        </div>""", unsafe_allow_html=True)
+                cit_rows += (
+                    "<div class='cit-row'>"
+                    f"<span class='cit-text'>{cit}</span>"
+                    "</div>"
+                )
+
+        st.markdown(
+            "<div class='cit-wrap fi3'>"
+            "<div class='cit-label'>&#128279; References</div>"
+            + cit_rows +
+            "</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def render_followup(tab_name, source, uploaded_db=None):
@@ -1215,32 +1263,38 @@ def render_followup(tab_name, source, uploaded_db=None):
 
         # Assistant answer as styled report card
         st.markdown(
-            f"<div class='report-wrap fi'>{_md_to_html(fu['report'], source=source)}</div>",
+            f"<div class='report-wrap fi'>{_md_to_html(fu['report'], source=source, strip_references=True)}</div>",
             unsafe_allow_html=True,
         )
         # Citations if present
         if fu.get("citations"):
-            import re
-            chips_list = []
-            for j, c in enumerate(fu["citations"][:15]):
-                url_match = re.search(r'\((https?://\S+)\)', c)
+            fu_cit_rows = ""
+            for cit in fu["citations"][:15]:
+                url_match = re.search(r'(https?://\S+)', cit)
                 if url_match:
-                    link = url_match.group(1)
-                    clean_cit = c.replace(f"({link})", "").strip()
-                    chips_list.append(
-                        f"<a href='{link}' target='_blank' style='text-decoration:none;'>"
-                        f"<span class='cit-chip'>[{j+1}] {clean_cit[:70]}{'…' if len(clean_cit)>70 else ''}</span>"
-                        f"</a>"
+                    url      = url_match.group(1).rstrip('.,)')
+                    cit_text = cit.replace(url_match.group(1), "").strip().rstrip(".")
+                    fu_cit_rows += (
+                        "<div class='cit-row'>"
+                        f"<span class='cit-text'>{cit_text}</span>"
+                        f"<a href='{url}' target='_blank' class='cit-link'>"
+                        f"&#8599; {url[:60]}{'&#8230;' if len(url) > 60 else ''}"
+                        "</a></div>"
                     )
                 else:
-                    chips_list.append(f"<span class='cit-chip'>[{j+1}] {c[:70]}{'…' if len(c)>70 else ''}</span>")
-            
-            chips = "".join(chips_list)
-            st.markdown(f"""
-            <div class='cit-wrap'>
-                <div class='cit-label'>🔗 Sources</div>
-                {chips}
-            </div>""", unsafe_allow_html=True)
+                    fu_cit_rows += (
+                        "<div class='cit-row'>"
+                        f"<span class='cit-text'>{cit}</span>"
+                        "</div>"
+                    )
+
+            st.markdown(
+                "<div class='cit-wrap'>"
+                "<div class='cit-label'>&#128279; References</div>"
+                + fu_cit_rows +
+                "</div>",
+                unsafe_allow_html=True,
+            )
         # Download button for this follow-up
         fu_pdf_data = generate_pdf(
             fu["report"],
@@ -1324,7 +1378,7 @@ def render_followup(tab_name, source, uploaded_db=None):
             if tab_name not in st.session_state.followup_results:
                 st.session_state.followup_results[tab_name] = []
                 
-            st.session_state.followup_results[tab_name].append({
+            fu_entry = {
                 "query":          q.strip(),          # show original to user
                 "full_query":     contextual_query,   # what was actually sent
                 "report":         res.get("report", ""),
@@ -1335,7 +1389,8 @@ def render_followup(tab_name, source, uploaded_db=None):
                 "is_followup":    True,
                 "original_query": contextual_query,
                 "needs_retrieval": res.get("needs_retrieval", False),
-            })
+            }
+            st.session_state.followup_results[tab_name].append(_deep_serialize(fu_entry))
 
             # ── Persist follow-ups to history ──
             lp = st.session_state.last_plan.get(tab_name, {})
@@ -1794,7 +1849,7 @@ else:
                 res["query"] = final_q
                 # Build the history entry FIRST so iso_ts is generated
                 import datetime as _dt
-                new_entry = {
+                new_entry = _deep_serialize({
                     "insight": insight,
                     "query":   final_q,
                     "ts":      _dt.datetime.now().strftime("%H:%M"),
@@ -1804,7 +1859,7 @@ else:
                     "plan": res.get("plan", ""),
                     "sub_questions": res.get("sub_questions", []),
                     "followups": []
-                }
+                })
                 
                 # append_entry writes iso_ts into new_entry in-place
                 append_entry(new_entry)

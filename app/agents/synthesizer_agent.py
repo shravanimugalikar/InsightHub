@@ -26,10 +26,75 @@ llm = ChatGroq(
 
 def _truncate_context(docs: list, max_chars: int = 25000) -> str:
     """Join docs and truncate to a safe character limit."""
-    full_text = "\n\n".join(docs)
+    text_docs = []
+    for d in docs:
+        if hasattr(d, "page_content"):
+            text_docs.append(d.page_content)
+        else:
+            text_docs.append(str(d))
+    full_text = "\n\n".join(text_docs)
     if len(full_text) <= max_chars:
         return full_text
     return full_text[:max_chars] + "... [Context truncated due to size limits]"
+
+
+def _build_citations(docs: list) -> list:
+    """
+    Build a clean formatted citations list from retrieved docs.
+
+    arXiv format : [1] Last, F., Last2, F. et al. (Year) — Title. arXiv: URL
+    Web format   : [1] Title. Available at: URL
+    Local format : [1] Title (Page N). Source: URL
+    """
+    citations = []
+    for i, doc in enumerate(docs, start=1):
+        if hasattr(doc, "metadata"):
+            meta    = doc.metadata
+            title   = meta.get("title",   "Untitled")
+            authors = meta.get("authors", "")
+            year    = meta.get("year",    "")
+            url     = meta.get("url",     meta.get("source", ""))
+            dtype   = meta.get("type",    "")
+
+            if dtype == "arxiv":
+                # [1] Last, F., Last2, F. et al. (Year) — Title. arXiv: URL
+                parts = []
+                if authors:
+                    parts.append(authors)
+                if year:
+                    parts.append(f"({year})")
+                prefix = " ".join(parts)
+                if prefix:
+                    cit = f"[{i}] {prefix} \u2014 {title}"
+                else:
+                    cit = f"[{i}] {title}"
+                if url:
+                    cit += f". arXiv: {url}"
+
+            elif dtype == "web":
+                cit = f"[{i}] {title}"
+                if url:
+                    cit += f". Available at: {url}"
+
+            elif dtype == "local":
+                cit = f"[{i}] {title}"
+                page = meta.get("page")
+                if page is not None:
+                    cit += f" (Page {page + 1})"
+                if url:
+                    cit += f". Source: {url}"
+
+            else:
+                cit = f"[{i}] {title}"
+                if url:
+                    cit += f". Source: {url}"
+
+            citations.append(cit)
+        else:
+            text = str(doc)
+            citations.append(f"[{i}] {text[:120]}...")
+
+    return citations
 
 
 def run_synthesizer(state: dict) -> dict:
@@ -45,7 +110,8 @@ def run_synthesizer(state: dict) -> dict:
     followup_q    = state.get("query", query)          # the actual question asked
     plan          = state.get("plan", "")
     retrieved_docs = state.get("retrieved_docs", [])
-    citations     = state.get("citations", [])
+    state["citations"] = _build_citations(retrieved_docs)
+    citations     = state["citations"]
     chat_history  = state.get("chat_history", [])
     session_ctx   = state.get("session_context", {})
     is_followup   = state.get("is_followup", False)
@@ -132,8 +198,17 @@ Generate a well-structured research report with the following sections. Use mark
 ## Conclusion
 (Brief closing thoughts and implications)
 
-## References
-(List only the academic/web sources provided in the 'Available Citations' section above. Number them [1], [2], etc. For each source, include the title/name followed by its URL in markdown format: [Link](url). If no citations were provided, do NOT include this section at all.)
+## References section format — use EXACTLY this format for each reference:
+[1] FirstAuthor, SecondAuthor et al. (Year) — Full Paper Title. URL
+[2] Title. Available at: URL
+
+Rules:
+- Reference numbers must match inline citations [1], [2] in the report body
+- Never write '1] [Title' — always write '[1] Title'
+- Always include the URL on the same line after the title
+- For arXiv papers include the full http://arxiv.org/abs/... URL
+- For web sources include the full https://... URL
+- List ALL documents provided, even if not cited in the body
 
 Final Instruction: Be thorough and accurate. Cite sources inline using [1], [2], etc., corresponding to the References list. Do NOT use placeholder text like '[Insert Citation]'."""
 
