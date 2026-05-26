@@ -8,6 +8,10 @@ Multi-Agent RAG Research Assistant
 ══════════════════════════════════════════════════════════════════════════════
 """
 
+import os
+# Force protobuf to use pure-Python implementation to bypass descriptor errors
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+
 # Chroma/sqlite3 override for Streamlit Community Cloud (Linux compatibility)
 try:
     __import__('pysqlite3')
@@ -17,7 +21,6 @@ except ImportError:
     pass
 
 import streamlit as st
-import os
 import time
 import datetime
 import re
