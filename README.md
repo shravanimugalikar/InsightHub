@@ -127,14 +127,14 @@ The Research Synthesizer uses the retrieved context with the Groq-powered LLM to
 ## 🔄 Agentic RAG Pipeline
 
 ```text
-User Query
-    ↓
-Query Analysis
-    ↓
-Query Decomposition
-    ↓
-Retrieval Routing
-    ↓
+             User Query
+                 ↓
+           Query Analysis
+                 ↓
+         Query Decomposition
+                 ↓
+          Retrieval Routing
+                 ↓
  ┌───────────────┬────────────────┐
  ↓               ↓                ↓
 arXiv         ChromaDB        Web Search
